@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html; charset=utf-8">
+<meta name="description" content=
+"Dan MacDonald's Openstack notes">
+<title></title>
+</head>
+<body>
+<p><font size="+3"><span class=
+"ms-rteFontSize-5">Openstack</span></font><br></p>
+<p><span class="ms-rteFontSize-3"><a href=
+"https://www.openstack.org/">Openstack</a> is a set of software
+tools for building and managing cloud computing platforms for
+public and private clouds. This page documents&nbsp;a number of
+post-installation&nbsp;tweaks and other notes relating to the use
+and configuration of Openstack. See the <a href=
+"https://htmlpreview.github.io/?https://github.com/danboid/dox/blob/main/openstack/juju.html">Juju page</a> for notes
+on installing Openstack using Juju.<br></span></p>
+<p><span class="ms-rteFontSize-3">I have used OS as shorthand for
+Openstack on this page so always&nbsp;presume it means that and not
+Operating System.</span><br></p>
+<p><span class="ms-rteFontSize-3"><br></span></p>
+<p><font size="+2"><span class="ms-rteFontSize-4">Accessing the
+dashboard via&nbsp;SSH tunneling</span></font></p>
+<p><span class="ms-rteFontSize-3">SSH tunneling is also called SSH
+port forwarding.&nbsp;This offers a much more responsive experience
+compared to using a browser under&nbsp;x2go, VNC or using SSH X
+forwarding.</span></p>
+<p><span class="ms-rteFontSize-3">The following instructions assume
+that&nbsp;<strong>AllowTcpForwarding</strong> is enabled
+in&nbsp;<strong>/etc/ssh/sshd_config</strong> on the ssh server you
+are connecting to. On the machine you wish to access the dashboard
+from, you run a command such as:</span></p>
+<p><span class="ms-rteFontSize-3"><br></span></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3">$ ssh -L 8000:177.22.33.222:80
+dan@hornhq.org<br></span></div>
+<p><span class="ms-rteFontSize-3"><strong><br></strong></span></p>
+<p><span class="ms-rteFontSize-3"><strong>8000</strong> is the port
+that SSH will use for the tunnel on your machine. You can use any
+port number you want between 1025 and 49151 that doesn't clash with
+any ports being used on your machine. 8000 will probably be safe to
+use.&nbsp;<strong>177.22.33.222</strong> is the address of the
+machine&nbsp;we want to access via the SSH server we are connecting
+to (in this case the OS Horizon dashboard server)&nbsp;and
+<strong>80</strong> is the port we are accessing on the remote
+machine that we specified an IP address for. Of course you need to
+replace <strong>dan</strong> with your user&nbsp;name on the SSH
+server&nbsp;and <strong>hornhq.org</strong> with the address of the
+SSH server you are using to create the tunnel.</span><br></p>
+<p><span class="ms-rteFontSize-3">Once you have successfully
+connected via SSH and&nbsp;created&nbsp;the tunnel, you should be
+able to access the OS dashboard by opening&nbsp;<strong><a href=
+"http://localhost:8000/horizon">http://localhost:8000/horizon</a></strong>
+in your local machines&nbsp;browser.</span><br></p>
+<p><span class="ms-rteFontSize-3"><br></span></p>
+<div><font size="+2"><span class="ms-rteFontSize-4">Creating a new
+instance (VM) via the Horizon&nbsp;dashboard web
+interface</span></font><br></div>
+<div><br></div>
+<div><span class="ms-rteFontSize-3">Log into the <a href=
+"http://172.20.1.91/horizon/">Openstack dashboard</a>
+(horizon).<br></span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div><span class="ms-rteFontSize-3">Navigate to Compute -&gt;
+Instances in the left-hand menu and click the 'Launch Instance'
+icon.</span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div><span class="ms-rteFontSize-3">Give the instance a name in the
+Details menu.</span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div><span class="ms-rteFontSize-3">Next select the Source menu,
+scroll down the the Available section and click on the up arrow
+next to the desired image to select it.</span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div><span class="ms-rteFontSize-3">In the Flavor menu, click on
+the up arrow next to your desired flavor.</span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div><span class="ms-rteFontSize-3">Within Networks, ONLY
+add&nbsp;the internal network that matches your user name. Do not
+add an external network.</span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div><span class="ms-rteFontSize-3">Select the Key Pair menu and
+check the desired SSH keys are chosen to be installed then click
+'Launch Instance'.</span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div><span class="ms-rteFontSize-3">After a minute or so, your
+instance should be launched and running. Now click on the
+down-pointing arrow in the Actions column for your newly created
+instance and select 'Associate Floating IP'. Click on the plus icon
+then 'Allocate IP' followed by 'Associate'.</span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div><span class="ms-rteFontSize-3">Once the floating IP has been
+associated with your instance you should be able to SSH into the
+instance's&nbsp;floating IP address using the username
+<strong>ubuntu</strong>:<br></span></div>
+<br>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3">$ ssh
+ubuntu@FLOATING-IP-OF-INSTANCE</span></div>
+<p><span class="ms-rteFontSize-3"><br></span></p>
+<p><span class="ms-rteFontSize-4"><br></span></p>
+<p><font size="+2"><span class="ms-rteFontSize-4">Creating a new
+instance from the command line</span></font></p>
+<p><span class="ms-rteFontSize-3">Creating a new instance is
+usually&nbsp;a&nbsp;3-step process. Creating the instance, creating
+a new floating IP and then&nbsp;assigning the floating IP to the
+instance, like so:</span></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div><span class="ms-rteFontSize-3">$ openstack server create
+--image bionic --flavor m1.medium --key-name danskey --nic
+net-id=abc123_admin_net bionic-test</span></div>
+<div><span class="ms-rteFontSize-3">$ openstack floating ip create
+ext_net</span></div>
+<div><span class="ms-rteFontSize-3">$ openstack server add floating
+ip bionic-test 172.20.2.238</span><br></div>
+</div>
+<p><span class="ms-rteFontSize-3"><br></span></p>
+<p><span class="ms-rteFontSize-3"><br></span></p>
+<p><span class="ms-rteFontSize-3"><font size="+2"><span class=
+"ms-rteFontSize-4">Add a Ubuntu 18.04&nbsp;(bionic)
+image</span></font><br></span></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<p><span class="ms-rteFontSize-3">$ curl
+https://cloud-images.ubuntu.com/bionic/current/bionic-server-cloudimg-amd64.img
+| \<br>
+&nbsp;&nbsp;&nbsp; openstack image create --public
+--container-format=bare --disk-format=qcow2 bionic<br></span></p>
+</div>
+<p><span class="ms-rteFontSize-3"><br></span></p>
+<p><span class="ms-rteFontSize-3"><br></span></p>
+<p><span class="ms-rteFontSize-3"><font size="+2"><span class=
+"ms-rteFontSize-4">Add medium and large
+flavors</span></font><br></span></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3">$ openstack flavor create --ram 4096
+--disk 40 --vcpus 2 m1.medium</span><br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">$ openstack flavor create --ram 8192
+--disk 80 --vcpus 4 m1.large</span><br></div>
+<p><span class="ms-rteFontSize-3"><br></span></p>
+<div><span class="ms-rteFontSize-4"><br></span></div>
+<div><font size="+2"><span class="ms-rteFontSize-4">Creating a new
+domain</span></font></div>
+<div><span class="ms-rteFontSize-4"><br></span></div>
+<div><span class="ms-rteFontSize-3">Whilst it is possible to create
+the skeleton of&nbsp;a new domain via the dashboard as an admin
+user, it doesn't yet seem to be possible to create a fully working
+domain that you can login to and start using from the dashboard
+alone.&nbsp;At the bare minimum&nbsp;you must create at least one
+admin user and one project within the new domain and add that
+user/role to the project&nbsp;before you can log into a new
+domain,&nbsp;plus you will also need&nbsp;to create a new router
+and private subnet for each project before you can SSH into and
+access the net from any instances you create. The fact that domain
+creation can only be fully done from the command line is no big
+loss as it will likely&nbsp;only need to be done once for any given
+Openstack&nbsp;deployment.</span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">Here are the commands to create
+a new domain called <strong>astronomy</strong>&nbsp;with a Member
+role:</span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div><span class="ms-rteFontSize-3">$ openstack domain create
+--description "Astronomy Domine" astronomy</span></div>
+<div><span class="ms-rteFontSize-3">$ openstack role create
+--domain astronomy&nbsp;Member</span></div>
+</div>
+</div>
+<p><span class="ms-rteFontSize-3"><br></span></p>
+<p><span class="ms-rteFontSize-3"><br></span></p>
+<p><span class="ms-rteFontSize-3"><font size="+2"><span class=
+"ms-rteFontSize-4">Setting default
+quotas</span></font><br></span></p>
+<p><span class="ms-rteFontSize-3"><span><span class=
+"ms-rteFontSize-3">You can see the maximum available resource
+values within the OS dashboard under <strong>Admin -&gt; Compute
+-&gt; Hypervisors</strong></span></span><br></span></p>
+<p><span class="ms-rteFontSize-3">You can check your current quota
+defaults by running:<br></span></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3">$ openstack quota show
+--default<br></span></div>
+<p><span class="ms-rteFontSize-3">You should configure suitable
+quota defaults before creating any users/projects. By equally
+dividing the available RAM between the vCPUs, we have decided to
+default to giving users 6 cores/instances, 36 GB RAM and 200 GB
+storage.</span><br></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3">$ openstack quota set --class
+--cores 6 default<br>
+$ openstack quota set --class --instances 6 default<br>
+$ openstack quota set --class --gigabytes 200 default<br>
+$ openstack quota set --class --ram 36864 default<br></span></div>
+<p><span class="ms-rteFontSize-3">Run <strong>openstack project
+list</strong> to list the project IDs. You may wish to adjust
+individual project quotas after creating them:</span><br></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div><span class="ms-rteFontSize-3">$ openstack quota set --ram
+560000 project-ID<br></span></div>
+<div><span class="ms-rteFontSize-3"><span style=
+"font-size: 17.3333px; background-color: #eeeedd;">$ openstack
+quota set
+--gigabytes&nbsp;3000&nbsp;project-ID</span><br></span></div>
+<div><span class="ms-rteFontSize-3">$ openstack quota set
+--instances 100 project-ID</span></div>
+<div><span class="ms-rteFontSize-3">$ openstack quota set --cores
+100&nbsp;project-ID<br></span></div>
+<div><span><span class="ms-rteFontSize-3">$ openstack quota set
+--ports 500 project-ID</span></span><br></div>
+<div><span><span class="ms-rteFontSize-3"><span style=
+"font-size: 17.3333px; background-color: #eeeedd;">$ openstack
+quota set
+--volumes&nbsp;200&nbsp;project-ID</span><br></span></span></div>
+<div><span><span class="ms-rteFontSize-3"><span style=
+"font-size: 17.3333px; background-color: #eeeedd;"><span style=
+"font-size: 17.3333px; background-color: #eeeedd;">$ openstack
+quota set
+--floating-ips&nbsp;200&nbsp;project-ID</span><br></span></span></span></div>
+</div>
+<p><br></p>
+<p><span class="ms-rteFontSize-3"><br></span></p>
+<p><font size="+2"><span class="ms-rteFontSize-4">Creating a new
+Openstack user</span></font><br></p>
+<p><span class="ms-rteFontSize-3">Openstack's resources are
+allocated on a&nbsp;per-project basis which means the
+amount&nbsp;of VCPUs, disk space, RAM etc you have access to
+depends on the quota&nbsp;settings for your project. Hence,&nbsp;it
+makes sense to create a new Openstack project for each Openstack
+user and make that user the Admin of their project. To keep things
+easier to manage and automate it is logical to name the users
+project after their user name.</span></p>
+<p><span class="ms-rteFontSize-3">Openstack users can be Admin (or
+'Member') members of multiple projects&nbsp;if required and the
+quota settings for projects can be easily adjusted after creation,
+if needed.&nbsp;Whilst it should be possible to create a new domain
+(OS domains contain projects and users)&nbsp;for each OS&nbsp;user,
+that involves more admin overhead with&nbsp;potentially
+zero&nbsp;user&nbsp;benefits for our use case.</span><br></p>
+<p><span class="ms-rteFontSize-3"><a href=
+"https://github.com/danboid/dox/blob/main/openstack/new-os-user.sh">Here is a
+script</a>&nbsp;to automate the process of creating a new Openstack
+user. It presumes that the domain you choose to create the new
+project and user in&nbsp;already exists, the domain&nbsp;has had
+a&nbsp;<strong>Member</strong>&nbsp;role added to it and that you
+have sourced the OS admin users rc script before running it. Just
+change&nbsp;<strong>tenant</strong>&nbsp;to the new users name
+before running it.&nbsp;</span></p>
+<p><span style="font-size: 13pt;">To enable users to create and
+manage loadbalancers, you must assign them the correct <a href=
+"https://docs.openstack.org/octavia/latest/configuration/policy.html">
+Octavia Policy role</a> using a command such as:</span></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<p><span style="font-size: 13pt;">$ openstack role add --project
+abc123 --user abc123 --user-domain astronomy
+load-balancer_admin<br></span></p>
+</div>
+<p><br></p>
+<p><font size="+2"><span class="ms-rteFontSize-4">Manually creating
+a new user</span></font></p>
+<p><span class="ms-rteFontSize-3">To create a new admin&nbsp;OS
+user and project both called <strong>abc123</strong> within the OS
+domain called&nbsp;<strong>admin_domain</strong>&nbsp;and add a
+rule to enable SSH access within the projects security group, you
+would use commands such as:<br></span></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div><span class="ms-rteFontSize-2">$ openstack project create
+--domain admin_domain abc123<br></span></div>
+<div><span class="ms-rteFontSize-2">$ openstack user create
+--domain admin_domain --password INSERT-PASSWORD</span>
+<span class="ms-rteFontSize-2"><span class=
+"ms-rteFontSize-2">abc123</span></span></div>
+<div><span class="ms-rteFontSize-2">$ openstack role add
+--project</span> <span class="ms-rteFontSize-2"><span class=
+"ms-rteFontSize-2"><span class=
+"ms-rteFontSize-2">abc123</span></span> --user</span> <span class=
+"ms-rteFontSize-2"><span class="ms-rteFontSize-2"><span class=
+"ms-rteFontSize-2">abc123</span></span> --user-domain admin_domain
+Member</span></div>
+<div><span class="ms-rteFontSize-2">$ openstack security group list
+--project</span> <span class="ms-rteFontSize-2"><span class=
+"ms-rteFontSize-2"><span class=
+"ms-rteFontSize-2">abc123</span></span></span></div>
+<div><span class="ms-rteFontSize-2">$ openstack security group rule
+create 471d8f63-f1cb-4d02-9c49-51d0f4ea8720 --protocol tcp
+--dst-port 22:22 --remote-ip 0.0.0.0/0</span><br></div>
+</div>
+<p><br></p>
+<p><span class="ms-rteFontSize-3">To run the above you would
+need&nbsp;to substitute <strong>abc123</strong> with the
+new&nbsp;user/project
+name,&nbsp;replace&nbsp;<strong>admin_domain</strong>&nbsp;with&nbsp;the
+pre-existing OS&nbsp;domain to add the user and project to,
+replace&nbsp;<strong>INSERT-PASSWORD</strong>&nbsp;with&nbsp;the
+password you want to use for this new user and
+replace&nbsp;<strong>471d8f63-f1cb-4d02-9c49-51d0f4ea8720</strong>&nbsp;with
+the security group ID output from running the&nbsp;<strong>security
+group list</strong>&nbsp;command.</span><br></p>
+<p><span class="ms-rteFontSize-3">You need&nbsp;to create a new
+private network and router for each new project/user using
+a&nbsp;<a href=
+"new-router.sh">script like
+this</a>. If you have created a new domain then creating
+a&nbsp;private network and&nbsp;new router is mandatory. Creating a
+new router and subnet is automated by the user creation
+script.</span></p>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<p><span class="ms-rteFontSize-4"><br></span></p>
+<p><font size="+2"><span class="ms-rteFontSize-4">Creating an
+authorisation token using curl or PostMan</span></font><br></p>
+<p><span class="ms-rteFontSize-4"><span class=
+"ms-rteFontSize-3">Replace&nbsp;</span><span style=
+"font-size: 17.3333px;"><span class=
+"ms-rteFontSize-3"><strong>172.20.1.77</strong></span> with the
+address of your keystone server, <strong>admin</strong> with the
+username, <strong>admin_domain</strong> with the domain and
+<strong>INSERTPASSWORD</strong> with the
+password:</span></span></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3">$&nbsp;</span><span class=
+"ms-rteFontSize-3">curl -X POST
+http://172.20.1.77:5000/v3/auth/tokens -d '{ "auth": { "identity":
+{ "methods": [ "password"], "password": { "user": { "name":
+"admin", "domain": { "name": "admin_domain"}, "password":
+"INSERTPASSWORD"}}}}}' -H 'Content-type:
+application/json'</span><br></div>
+<p><br></p>
+<p><span class="ms-rteFontSize-3">To send this same&nbsp;request
+under PostMan, copy/paste&nbsp;all the JSON data (the single-quoted
+-d value above) and paste that into the PostMan&nbsp;Body tab,
+configured to use a&nbsp;raw JSON payload, then POST it to the same
+Keystone URL.</span><br></p>
+<p><br></p>
+<p><font size="+2"><span class="ms-rteFontSize-4">Deleting a router
+and its network</span></font></p>
+<p><span class="ms-rteFontSize-3">If you ran the router creation
+script only to realise afterwards you made a mistake (for a tenant
+called <strong>abc123</strong>) these commands would undo
+it:</span></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div><span class="ms-rteFontSize-3">$ neutron router-gateway-clear
+abc123_router</span></div>
+<div><span class="ms-rteFontSize-3">$ neutron
+router-interface-delete</span> <span class=
+"ms-rteFontSize-3"><span class=
+"ms-rteFontSize-3">abc123</span>_router</span> <span class=
+"ms-rteFontSize-3"><span class=
+"ms-rteFontSize-3">abc123</span>_admin_subnet</span></div>
+<div><span class="ms-rteFontSize-3">$ neutron router-delete</span>
+<span class="ms-rteFontSize-3"><span class=
+"ms-rteFontSize-3">abc123</span>_router</span></div>
+<div><span class="ms-rteFontSize-3">$ neutron subnet-delete</span>
+<span class="ms-rteFontSize-3"><span class=
+"ms-rteFontSize-3">abc123</span>_admin_subnet</span></div>
+<div><span class="ms-rteFontSize-3">$ neutron net-delete</span>
+<span class="ms-rteFontSize-3"><span class=
+"ms-rteFontSize-3">abc123</span>_admin_net</span><br></div>
+</div>
+<p><span class="ms-rteFontSize-3"><br></span></p>
+<p><span class="ms-rteFontSize-4"><a href=
+"http://www.tuxfixer.com/openstack-create-instance-snapshot-to-backup-restore-migrate-instance/">
+Backing up Openstack&nbsp;instances</a></span></p>
+<p><span class="ms-rteFontSize-3"><br></span></p>
+<p><font size="+2"><span class="ms-rteFontSize-4">Upgrading
+Openstack using&nbsp;juju</span></font><br></p>
+<p><span class="ms-rteFontSize-3">Upgrading a
+juju-deployed&nbsp;Openstack&nbsp;environment&nbsp;is&nbsp;<a href=
+"https://docs.openstack.org/project-deploy-guide/charm-deployment-guide/latest/app-upgrade-openstack.html">covered
+in detail here</a>.</span></p>
+<p><span class="ms-rteFontSize-3"><br></span></p>
+<p><font size="+2"><span class="ms-rteFontSize-4">Fixing
+the&nbsp;"No valid host was found" error</span></font></p>
+<p><span class="ms-rteFontSize-3">If you get an error
+like:</span></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div>Error: Failed to perform requested operation on instance
+"dantest", the instance has an error status: Please try again later
+[Error: No valid host was found. ].&nbsp;</div>
+</div>
+<div><br>
+<span class="ms-rteFontSize-3">When trying to create a new instance
+from&nbsp;the OS dashboard,
+check&nbsp;<strong>/var/log/nova/nova-scheduler.log</strong>
+on&nbsp;<strong>nova-cloud-controller/0</strong> for a warning
+like:</span><br></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3"><span class=
+"ms-rteFontSize-1">2020-04-21 13:49:14.502 1762821 WARNING
+nova.scheduler.client.report
+[req-6fa55478-90e4-44e4-af89-efd92da2f27f
+fddfad550c254b5f9808109237841f33 5757bcd6c6da4576a3d53630116d31b7 -
+885cb49486ce46358b9287fb1e2174a4 885cb49486ce46358b9287fb1e2174a4]
+Placement API service is not responding.:
+keystoneauth1.exceptions.connection.ConnectFailure: Unable to
+establish connection to
+http://172.20.2.50:8778/allocation_candidates?limit=1000&amp;required=%21COMPUTE_STATUS_DISABLED&amp;resources=MEMORY_MB%3A1024%2CVCPU%3A1:
+HTTPConnectionPool(host='172.20.2.50', port=8778): Max retries
+exceeded with url:
+/allocation_candidates?limit=1000&amp;required=%21COMPUTE_STATUS_DISABLED&amp;resources=MEMORY_MB%3A1024%2CVCPU%3A1
+(Caused by
+NewConnectionError('&lt;urllib3.connection.HTTPConnection object at
+0x7fbf1b4f3f98&gt;: Failed to establish a new connection: [Errno
+111] ECONNREFUSED',))</span><br></span></div>
+</div>
+<div><span class="ms-rteFontSize-3"><span class=
+"ms-rteFontSize-1"><br></span></span></div>
+<div><span class="ms-rteFontSize-3">The key phrase we're looking
+for here is "<strong>Placement API service is not
+responding</strong>.". If you see this you should use <strong>juju
+status</strong>&nbsp;to work out which LXD server is
+hosting&nbsp;<strong>placement/0</strong>, SSH into it and then
+restart the LXD container used for running the Placement
+API.</span></div>
+</body>
+</html>
