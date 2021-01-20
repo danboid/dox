@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html; charset=utf-8">
+<meta name="generator" content=
+"Dan MacDonald's notes on using Juju to install Openstack">
+<title></title>
+</head>
+<body>
+<p><font size="+3"><span class=
+"ms-rteFontSize-6">Juju</span></font><br></p>
+<p><span class="ms-rteFontSize-3">Juju is an open source
+application modeling and cloud deployment/orchestration tool. It
+supports quickly deploying, configuring, scaling, integrating, and
+performing operational tasks on a range of public cloud services as
+well as private ones&nbsp;created&nbsp;in conjunction with <a href=
+"FIXME">MAAS</a>.</span></p>
+<div><br></div>
+<div><br></div>
+<div>
+<p><font size="+2"><span class="ms-rteFontSize-5">Deploying the
+Juju Openstack telemetry bundle with Octavia
+overlay</span></font><br></p>
+<span class="ms-rteFontSize-3">The&nbsp;original instructions for
+deploying the <a href="https://jaas.ai/openstack-base">Openstack
+bundle with Juju are here</a>. This page provides additional notes
+on how to use juju to deploy the OS bundles for our server
+configuration and requirements, such as using the&nbsp;<a href=
+"https://jaas.ai/openstack-telemetry/bundle">openstack-telemetry</a>
+bundle instead of <strong>openstack-base</strong> so that
+ceilometer is&nbsp;installed to provide telemetry and tracking
+data. We also install the <a href=
+"https://github.com/openstack-charmers/openstack-bundles/blob/master/stable/overlays/loadbalancer-octavia.yaml">
+Octavia overlay bundle</a> to install the additional units required
+to provide load balancing. A significant amount of configuration is
+required to get Octavia working after installing the bundle and
+overlay. That post install configuration forms the bulk of the info
+on this page.<br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><font size="+2"><span class="ms-rteFontSize-4">Deploy&nbsp;a
+juju controller</span></font><br class="ms-rteFontSize-3"></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div><span class="ms-rteFontSize-3">Before you can use juju to
+install Openstack, you must first set up a juju controller. After
+adding a MAAS cloud, as <a href=
+"https://jaas.ai/docs/maas-cloud">described on this page</a>, run
+the following command to&nbsp;deploy a&nbsp;juju
+controller:<br></span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div><span class="ms-rteFontSize-3">$ juju bootstrap maas-cloud
+juju-controller --to crack-bobcat.maas</span></div>
+</div>
+<div><span class=
+"ms-rteFontSize-3"><strong><br></strong></span></div>
+<div><span class="ms-rteFontSize-3">In this example,
+<strong>crack-bobcat.maas</strong>&nbsp;was
+chosen&nbsp;as&nbsp;the&nbsp;Juju controller install target.
+Bootstrapping the juju controller usually takes about 10 minutes.
+For some reason, deploying a juju controller fails if IPv6 is
+enabled for bind on the MAAS controller. To disable it, comment out
+the <strong>listen-on { 127.0.0.1; };</strong> and
+<strong>listen-on-v6 { any; };</strong> lines from
+<strong>/etc/bind/</strong><strong>named.conf.options</strong> on
+the MAAS controller and restart the bind9 service before running
+the above <strong>juju bootstrap</strong> command.<br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div>
+<p><span class="ms-rteFontSize-3">To ssh into the juju controller
+once deployed, run:</span></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3">$ juju ssh -m controller
+0</span></div>
+</div>
+<div><br class="ms-rteFontSize-3"></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><font size="+2"><span class=
+"ms-rteFontSize-4">Download the bundle
+source</span></font><br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">To fetch the source of the
+bundle, you would normally run something like:<br></span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div><span class="ms-rteFontSize-3">$ charm pull
+openstack-telemetry&nbsp;~/openstack-telemetry</span></div>
+</div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">However, if you were to
+use&nbsp;the default bundle code it would install the&nbsp;latest
+LTS version of Ubuntu and the latest stable
+Openstack.&nbsp;I&nbsp;tried&nbsp;deploying OS Ussuri&nbsp;with
+no&nbsp;luck so we are going to stick with the previous LTS Ubuntu
+(Bionic/18.04) and the previous release of OS, Train. So, in this
+case we need to clone the bundles repo instead of using
+<strong>charm pull</strong>:<br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3">$&nbsp;git clone
+https://github.com/openstack-charmers/openstack-bundles.git<br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span style="font-size: 13pt;"><br></span></div>
+<div><span style="font-size: 13pt;"><br></span></div>
+<div><span style="font-size: 13pt;"><br></span></div>
+<div><span style="font-size: 13pt;"><font size="+2"><span class=
+"ms-rteFontSize-4">Bundle
+configuration</span></font><br></span></div>
+<div><span style="font-size: 13pt;"><br></span></div>
+<div><span style="font-size: 13pt;">To install Openstack Train
+using Ubuntu Bionic (18.04),&nbsp;edit&nbsp;</span><strong style=
+"font-size: 13pt;">~/openstack-bundles/development/openstack-telemetry-bionic-train/bundle.yaml</strong>
+<span style="font-size: 13pt;">, or whichever version bundle
+version suits, and&nbsp;change&nbsp;the&nbsp;</span><strong style=
+"font-size: 13pt;">osd-devices:</strong><span style=
+"font-size: 13pt;">&nbsp;(5th&nbsp;line) so that it
+reads:</span><br></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div><span class="ms-rteFontSize-3">osd-devices:&nbsp; &nbsp;
+&nbsp; &nbsp; &nbsp;&amp;osd-devices&nbsp; &nbsp; &nbsp; &nbsp;
+&nbsp; /dev/sdb /dev/vdb /dev/nvme0n1<br></span></div>
+</div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">If you give juju several MAAS
+machines to install a bundle on, it seems to assign the units to
+machines randomly instead of working out which would be the optimal
+machines to run certain services on. If you are using machines with
+varying spec then you can end up with varying amounts of vCPUs and
+other resources depending on which machines juju installed the nova
+compute service to.<br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">In our case we currently have
+one machine with 64 GB RAM whilst the other three have 256 GB RAM.
+The juju OS Train bundles install the neutron gateway onto machine
+0 and nova compute onto machines 1 to 3 so to ensure that juju
+installs nova on the machines with more resources so that they are
+available to the hypervisor we use a tag and constraints in the
+juju charm to specify that the&nbsp;64 GB machine is used as the
+neutron gateway. This may not be the case for newer or older
+versions of the Openstack bundles.<br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">To ensure&nbsp;the&nbsp;units
+are&nbsp;assigned the correct machines, add a
+<strong>neutron</strong> tag to the machine with 64 GB RAM under
+MAAS then edit the&nbsp;<strong>machines:</strong>&nbsp;section of
+<strong>bundle.yaml</strong> to look like:</span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3">machines:<br>
+&nbsp; '0':<br>
+&nbsp;&nbsp;&nbsp; series: bionic<br>
+&nbsp;&nbsp;&nbsp; constraints: tags=neutron<br>
+&nbsp; '1':<br>
+&nbsp;&nbsp;&nbsp; series: bionic<br>
+&nbsp; '2':<br>
+&nbsp;&nbsp;&nbsp; series: bionic<br>
+&nbsp; '3':<br>
+&nbsp;&nbsp;&nbsp; series: bionic<br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class=
+"ms-rteFontSize-3">Edit&nbsp;<strong>~/openstack-bundles/development/overlays/loadbalancer-octavia.yaml</strong>
+to ensure that both of the&nbsp;<strong>openstack-origin</strong>
+options match the version of openstack you are deploying
+eg&nbsp;<strong>cloud:bionic-train</strong>.<br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><font size="+2"><span class=
+"ms-rteFontSize-4">Deploy the bundle</span></font><br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">Presuming you are currently in
+the directory of the correct bundle, you can deploy it
+with&nbsp;the Octavia overlay&nbsp;by running:</span><br></div>
+<div><br></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div><span class="ms-rteFontSize-3">$&nbsp;juju deploy bundle.yaml
+--overlay ../overlays/loadbalancer-octavia.yaml</span><br></div>
+</div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">Deploying&nbsp;the Openstack
+telemetry bundle usually takes just under 40 minutes&nbsp;on our
+current hardware. <strong>Keystone</strong> and
+<strong>nova-cloud-controller</strong> are two of the last units
+that will come up as being ready. If
+<strong>nova-cloud-controller</strong> fails it could be because
+you have specified a DNS setting in MAAS for&nbsp;that subnet when
+it should be blank. You can check the progress of&nbsp;a deployment
+by running <strong>juju status</strong> and checking for the
+<strong>workload</strong> status of the various apps and units in
+becoming <strong>active</strong> and&nbsp;green.<br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><font size="+2"><span class=
+"ms-rteFontSize-4">Fixing the</span> <span class=
+"ms-rteFontSize-4">neutron-openvswitch
+problem</span></font><br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">If, after about 40 minutes
+since deploying the&nbsp;bundle,&nbsp;you end up with
+<strong>neutron-openvswitch</strong>'s juju status&nbsp;stuck in a
+<strong>maintenance</strong> rather than
+<strong>active</strong>&nbsp;state then the chances are that juju
+has failed to install the kernel modules on one or more of the
+neutron-openvswitch containers, of which there are 4. You can check
+by SSH'ing&nbsp;into&nbsp;all&nbsp;of the&nbsp;neutron-openvswitch
+units and&nbsp;if&nbsp;<strong>/lib/modules</strong> is empty
+and/or you see errors about missing modules in the
+<strong>journalctl</strong> output then run:</span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div><span class="ms-rteFontSize-3">$ juju ssh
+neutron-openvswitch/3<span id="ms-rterangepaste-end" aria-hidden=
+"true"><br></span></span></div>
+<div><span class="ms-rteFontSize-3">$ sudo apt install
+linux-generic<br></span></div>
+<div><span class="ms-rteFontSize-3">$ sudo reboot<br></span></div>
+</div>
+<div><span class="ms-rteFontSize-3"><span id="ms-rterangepaste-end"
+aria-hidden="true"><br></span></span></div>
+<div><span class="ms-rteFontSize-3">After&nbsp;rebooting
+the&nbsp;affected containers, <strong>neutron-openvswitch</strong>
+should become active under <strong>juju status</strong> within a
+few minutes of having all 4 units fully installed. On one occasion,
+rebooting just the unit that was missing the modules wasn't
+sufficient to fix the error and I had to reboot the main neutron
+gateway server and then reboot the affected container a second
+(third) time before juju did its magic.<br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-4"><br></span></div>
+<div><span class="ms-rteFontSize-3"><font size="+2"><span class=
+"ms-rteFontSize-4">Get your admin user Openstack login
+details</span></font><br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div><span class="ms-rteFontSize-3">$ source openrc<br>
+$ env | grep OS_<br>
+$ juju status openstack-dashboard</span></div>
+</div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><span>Make a note somewhere
+secure of <strong>OS_PASSWORD</strong> and the IP address of the
+dashboard.<br></span></span></div>
+<div><span class="ms-rteFontSize-3"><span><br></span></span></div>
+<div><span class="ms-rteFontSize-3"><span><br></span></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><font size="+2"><span class=
+"ms-rteFontSize-4">Add a amd64 Ubuntu Focal (20.04) cloud
+installation image</span></font><br>
+<br></span>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+$ curl
+https://cloud-images.ubuntu.com/focal/current/focal-server-cloudimg-amd64.img
+| \<br>
+&nbsp;&nbsp;&nbsp; openstack image create --public
+--container-format=bare --disk-format=qcow2 focal<br></div>
+</div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div>
+<div><font size="+2"><span class="ms-rteFontSize-4">Create&nbsp;an
+external network</span></font><br></div>
+<div>
+<div><br></div>
+<div><span class="ms-rteFontSize-3">A shared external&nbsp;network
+must&nbsp;be defined in addition to&nbsp;every user/project
+having&nbsp;their own private network, usually created by the new
+user script</span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div><span class="ms-rteFontSize-3">$&nbsp;</span><span style=
+"font-size: 13pt;">openstac</span><span style="font-size: 13pt;">k
+network create --external --provider-network-type flat</span>
+<span class="ms-rteFontSize-3">--provider-physical-network physnet1
+ext_net</span>
+<div><span class="ms-rteFontSize-3">$ openstack subnet create
+--subnet-range 172.20.0.0/21 --no-dhcp \</span></div>
+<div><span class="ms-rteFontSize-3">&nbsp; &nbsp; --gateway
+172.20.0.50 --network ext_net --allocation-pool
+start=172.20.1.2,end=172.20.7.254 ext</span><br></div>
+</div>
+</div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">The address passed to the
+gateway option is the address of the MAAS controller.</span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<span class="ms-rteFontSize-3">To enable internal DNS resolution
+run:</span>
+<div><span style="font-size: 17.3333px;"><br></span>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3">$ juju config neutron-api
+enable-ml2-dns=true</span></div>
+</div>
+<span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<span class="ms-rteFontSize-3"><font size="+2"><span class=
+"ms-rteFontSize-4">Create an internal network for the admin
+user</span></font><br>
+<br></span>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+$ openstack network create internal<br>
+$ openstack subnet create --network internal --subnet-range
+198.51.100.0/24 --dns-nameserver 1.1.1.1 internal_subnet<br>
+$ openstack router create provider-router<br>
+$ openstack router set --external-gateway ext_net
+provider-router<br>
+$ openstack router add subnet provider-router internal_subnet</div>
+<br>
+<br>
+<br>
+<font size="+2"><span class="ms-rteFontSize-4">Create a
+flavor</span></font><br>
+<br>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+$ openstack flavor create --ram 2048 --disk 20 m1.small</div>
+<br>
+<br>
+<br>
+<br>
+<font size="+2"><span class="ms-rteFontSize-4">Create security
+group rules to enable SSH and ping</span></font><br>
+<br>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+$ PROJECT_ID=$(openstack project list -f value -c ID --domain
+admin_domain)<br>
+$ SECGRP_ID=$(openstack security group list --project $PROJECT_ID |
+awk '/default/{print$2}')<br>
+$ openstack security group rule create $SECGRP_ID --protocol icmp
+--ingress --ethertype IPv4<br>
+$ openstack security group rule create $SECGRP_ID --protocol icmp
+--ingress --ethertype IPv6<br>
+$ openstack security group rule create $SECGRP_ID --protocol tcp
+--ingress --ethertype IPv4 --dst-port 22<br>
+$ openstack security group rule create $SECGRP_ID --protocol tcp
+--ingress --ethertype IPv6 --dst-port 22</div>
+</div>
+<div><br></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><font size="+2"><span class=
+"ms-rteFontSize-4">Create and test a
+VM</span></font><br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">Before going any further with
+configuring Openstack,&nbsp;it is recommended that at this stage
+you create and test a VM.&nbsp;Log into the dashboard as the admin
+user. <span><span class="ms-rteFontSize-3"><span><span class=
+"ms-rteFontSize-3">On the <strong>Admin -&gt; Compute -&gt;
+Hypervisors</strong> page you should see at least 120 vCPUs and 755
+GB RAM available if nova-compute has been deployed to the correct
+set of machines.</span></span></span></span> If that checks out OK,
+go to <strong>Project -&gt;</strong><strong>Compute -&gt; Key Pairs
+-&gt; Import Public Key</strong> and import your public SSH key
+before doing a test deployment of a VM instance to check OS is
+working. After creating a new instance and assigning it a floating
+IP check that you can SSH into the VM and update/install packages
+via apt.<br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><font size="+2"><span class=
+"ms-rteFontSize-4">Fixing Ceilometer and
+Ceph</span></font><br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div>
+<div><span class="ms-rteFontSize-3">If you get the error
+<strong>Services not running that should be: haproxy</strong> for
+<strong>ceph-radosgw/0</strong>, simply SSH into it and reboot it.
+To get <strong>ceilometer</strong> running, run:</span></div>
+<div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3">$ juju run-action ceilometer/0
+ceilometer-upgrade<br></span></div>
+</div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><br>
+<font size="+2"><span class=
+"ms-rteFontSize-4 ms-rteThemeFontFace-1">Initialise and unseal
+Vault</span></font><br>
+<br>
+<span class="ms-rteFontSize-3"><span class=
+"ms-rteFontSize-3"><span class="ms-rteThemeFontFace-1">Initialise
+and unseal Vault as per <a href=
+"https://opendev.org/openstack/charm-vault/src/branch/master/src/README.md">
+these instructions</a>.</span> Store the keys and token somewhere
+safe.<br></span></span><br>
+<br></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div>
+<p><span class="ms-rteFontSize-2"><font size="+2"><span class=
+"ms-rteFontSize-4">Activate Octavia</span></font><br></span></p>
+<p><span class="ms-rteFontSize-2"><span class=
+"ms-rteFontSize-3">You should now be able to activate Octavia,
+although I think this is a bug in the Octavia juju charm as more
+config is required before you can actually create
+LBs:<br></span></span></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3">$ juju run-action --wait octavia/0
+configure-resources</span></div>
+<span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><font size="+2"><span class=
+"ms-rteFontSize-4">Deploying
+octavia-diskimage-retrofit</span></font><br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div>
+<div><span class="ms-rteFontSize-3">After successfully configuring
+ceilometer and vault you can configure octavia. Using&nbsp;the
+Openstack&nbsp;Octavia&nbsp;loadbalancers requires a modified
+install image which is generated
+by&nbsp;<strong>octavia-diskimage-retrofit</strong>.<br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">The first step in configuring
+Octavia is to generate the security/auth certificates used by the
+Amphorae (LBs) and feed them to juju as <a href=
+"https://docs.openstack.org/project-deploy-guide/charm-deployment-guide/ussuri/app-octavia.html">
+documented here</a>. I changed the number of days duration of the
+certs to 9999&nbsp;instead&nbsp;of the suggested 365. I&nbsp;think
+the idea&nbsp;is not to run the&nbsp;
+<strong>configure-resources</strong> action until after you have
+created the correct amphora image,&nbsp;achieved by running the
+<span><span class="ms-rteFontSize-3">retrofit-image</span></span>
+juju run-action.<br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">The following commands&nbsp;can
+be&nbsp;found&nbsp;in the Amphorae section of <a href=
+"https://docs.openstack.org/project-deploy-guide/charm-deployment-guide/ussuri/app-octavia.html">
+these instructions</a>. Note that the rabbitmq connection is
+deprecated, if that command has not been removed, and the extra
+<strong>--to lxd:2</strong> on the end of the <strong>juju
+deploy</strong> command for&nbsp;<span style=
+"font-size: 17.3333px;"><strong>glance-simplestreams-sync</strong>.
+Replace <strong>lxd:2</strong> with the number of the juju machine
+you want to create the&nbsp;new lxd container on. It is recommended
+you create it on the same server that is running the glance unit.
+Without this extra option, juju will try to install it on a
+physical MAAS machine and fail if there is no spare
+machine.<br></span></span></div>
+<div><span class="ms-rteFontSize-3"><span style=
+"font-size: 17.3333px;"><br></span></span></div>
+<div><span class="ms-rteFontSize-3"><span style=
+"font-size: 17.3333px;">As for the <span class=
+"ms-rteFontSize-3">octavia-diskimage-retrofit</span> command. If
+you don't run this, <span class=
+"ms-rteFontSize-3">octavia-diskimage-retrofit</span> will default
+to creating a focal (Ubuntu 20.04) haproxy image which doesn't have
+support for OS Train so we must configure it use bionic
+instead.<br></span></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div><span class="ms-rteFontSize-3">$ juju deploy
+glance-simplestreams-sync --config
+source=ppa:simplestreams-dev/trunk --to lxd:2</span></div>
+<div><span class="ms-rteFontSize-3">$ juju deploy
+octavia-diskimage-retrofit --config
+amp-image-tag=octavia-amphora</span></div>
+<div><span class="ms-rteFontSize-3">$ juju add-relation
+glance-simplestreams-sync keystone</span></div>
+<div><span class="ms-rteFontSize-3">$ juju add-relation
+octavia-diskimage-retrofit glance-simplestreams-sync</span></div>
+<div><span class="ms-rteFontSize-3">$ juju add-relation
+octavia-diskimage-retrofit keystone</span></div>
+<div><span class="ms-rteFontSize-3">$ juju config
+octavia-diskimage-retrofit retrofit-series=bionic
+retrofit-uca-pocket=train<br></span></div>
+<div><span class="ms-rteFontSize-3">$ juju run-action --wait
+glance-simplestreams-sync/0 sync-images</span></div>
+<div><span class="ms-rteFontSize-3">$&nbsp;juju run-action --wait
+octavia-diskimage-retrofit/leader retrofit-image</span></div>
+</div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">Those last two run-action
+commands usually take approx 5 minutes each. Once
+<strong>octavia-diskimage-retrofit</strong> has generated
+the&nbsp;amphora-haproxy image, it will&nbsp;by default
+automatically use the latest LTS version on Ubuntu as a base for
+the amphora and tag this image for use by Octavia.<br></span></div>
+<div><br></div>
+<div><br></div>
+<div><font size="+2"><span class="ms-rteFontSize-4">Create an
+Octavia profile and flavor</span></font></div>
+<div><br></div>
+<div><span class="ms-rteFontSize-3">Regular Openstack flavors can't
+be used for amphora so you must create at least one <a href=
+"https://docs.openstack.org/octavia/latest/admin/flavors.html">Octavia&nbsp;flavor</a>
+before you can create any loadbalancers, and this additionally
+requires creating a flavor profile first:<br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div><span class="ms-rteFontSize-3">$ openstack loadbalancer
+flavorprofile create --name amphora-single-profile --provider
+amphora \<br></span></div>
+<div><span class="ms-rteFontSize-3">&nbsp;&nbsp; --flavor-data
+'{"loadbalancer_topology": "SINGLE"}'<br>
+$ openstack loadbalancer flavor create --name standalone-lb
+--flavorprofile amphora-single-profile \<br></span></div>
+<div><span class="ms-rteFontSize-3">&nbsp; --description "A
+non-high availability load balancer for testing."
+--enable</span></div>
+</div>
+<div><br></div>
+<div><br></div>
+<div><br></div>
+</div>
+<div>
+<p><span class="ms-rteFontSize-2"><font size="+2"><span class=
+"ms-rteFontSize-4">Create a loadbalancer</span></font></span></p>
+<p><span class="ms-rteFontSize-2"><span class=
+"ms-rteFontSize-3">See</span> <span class=
+"ms-rteFontSize-3">section <a href=
+"https://access.redhat.com/documentation/en-us/red_hat_openstack_platform/14/html/networking_guide/sec-octavia#configuring_an_http_load_balancer">
+16.6. Configuring an HTTP load balancer</a></span>. <span class=
+"ms-rteFontSize-3">The initial create command (Step 1) will be
+something like:</span></span></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<p><span class="ms-rteFontSize-2"><span class=
+"ms-rteFontSize-3">$</span> <span class=
+"ms-rteFontSize-3">openstack loadbalancer create --name lb1
+--vip-network-id abc123_admin_net</span></span><br></p>
+</div>
+<span class="ms-rteFontSize-2"><span class=
+"ms-rteFontSize-3"><br></span></span></div>
+<div><span class="ms-rteFontSize-2"><span class=
+"ms-rteFontSize-3">If you&nbsp;were authenticated with Openstack as
+user abc123. Creating a new LB instance usually takes a couple of
+minutes, provided all of the prerequisites listed above are
+met.</span></span> <span class="ms-rteFontSize-3">For step 7 of
+that LB config guide the command to create a floating IP
+address&nbsp;on our&nbsp;installation would be:</span><span class=
+"ms-rteFontSize-2"><br></span></div>
+<div>
+<p><span class="ms-rteFontSize-2"><span class=
+"ms-rteFontSize-3"><br></span></span></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<p><span class="ms-rteFontSize-2"><span class="ms-rteFontSize-3">$
+openstack floating ip create ext_net</span></span><br></p>
+</div>
+<br>
+<p><br></p>
+<div><br></div>
+<div><font size="+2"><span class="ms-rteFontSize-4">Adding extra
+juju users</span></font><br></div>
+<div><br></div>
+<div><span class="ms-rteFontSize-3">After deploying a Juju model or
+bundle, you may wish to add extra users. To add a users public SSH
+key to all the Ubuntu user accounts on every unit within a model,
+use the command:<br></span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div><span class="ms-rteFontSize-3">$ juju add-ssh-key
+"USERS-PUBLIC-SSH-KEY"</span><br></div>
+</div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">You can&nbsp;create a new juju
+user like so:</span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div><span class="ms-rteFontSize-3">$ juju add-user
+kunbi<br></span></div>
+</div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span style="font-size: 17.3333px;">To grant juju user kunbi
+admin rights to the model named default you'd run:</span></div>
+<div><span style="font-size: 17.3333px;"><br></span></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div><span style="font-size: 17.3333px;">$ juju grant kunbi admin
+default<br></span></div>
+</div>
+<div><span style="font-size: 17.3333px;"><br></span></div>
+<div><span style="font-size: 17.3333px;">For more info on users and
+model access permissions etc <a href=
+"https://jaas.ai/docs/working-with-multiple-users">see
+here</a>.</span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><font size="+2"><span class="ms-rteFontSize-4">Moving a juju
+account</span></font></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">If you find yourself needing to
+use an existing, non-admin&nbsp;juju account&nbsp;on a different
+machine but you still have access to juju as the
+admin&nbsp;juju&nbsp;user on another machine, the easiest solution
+is to reset that users password using a command such
+as:</span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3">$ juju change-user-password kunbi
+--reset<br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">This command doesn't work for
+the admin user resetting their&nbsp;own password.&nbsp;You may find
+it easier to create a new juju user with admin
+rights.&nbsp;Alternatively,&nbsp;you can make a backup of
+the&nbsp;<strong>~/.local/share/juju</strong> directory and copy it
+onto the new machine - that&nbsp;should work in all
+cases.</span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><br></div>
+<div><font size="+2"><span class="ms-rteFontSize-4">Starting
+over</span></font><br></div>
+<div><br></div>
+<div><span class="ms-rteFontSize-3">If you have broken&nbsp;your
+Juju&nbsp;Openstack deployment beyond repair, you would issue the
+following commands to remove everything:<br></span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div>
+<div><span class="ms-rteFontSize-3">$ juju models # Check model
+name</span></div>
+<div><span class="ms-rteFontSize-3">$ juju destroy-model default #
+destroy the model named default<br></span></div>
+<div><span class="ms-rteFontSize-3"><span><span class=
+"ms-rteFontSize-3">$</span> <span class="ms-rteFontSize-3">juju
+remove-machine --force -m default 2 # If destroy-model stalls
+midway, you may need to use this</span></span><br></span></div>
+<div><span class="ms-rteFontSize-3">$ juju add-model
+default<br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"># At this
+stage&nbsp;you&nbsp;can now re-deploy the&nbsp;bundle, but&nbsp;if
+you&nbsp;also&nbsp;wanted
+to&nbsp;destroy&nbsp;the&nbsp;juju&nbsp;controller&nbsp;(not&nbsp;usually&nbsp;required)<span id="ms-rterangepaste-end"
+aria-hidden="true"><br></span></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">$ juju controllers # Check
+controller name</span></div>
+<div><span class="ms-rteFontSize-3">$ juju destroy-controller
+juju-controller # remove controller</span></div>
+<div><span class="ms-rteFontSize-3">or</span></div>
+<div><span class="ms-rteFontSize-3">$ juju unregister
+juju-controller # This works if you released the&nbsp;juju
+controller under MAAS first, which is not
+recommended<br></span></div>
+</div>
+</div>
+</div>
+</div>
+</body>
+</html>
