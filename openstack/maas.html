@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html; charset=utf-8">
+<meta name="description" content=
+"Dan MacDonald's notes on MAAS - Metal As A Service">
+<title></title>
+</head>
+<body>
+<p><font size="+3"><span class=
+"ms-rteFontSize-5">MAAS</span></font><br></p>
+<div><br></div>
+<div><span class="ms-rteFontSize-3"><a href=
+"https://maas.io/">Metal As A Service</a>
+lets you treat physical servers like virtual machines (instances)
+in the cloud and makes deployment and management easy with its web
+interface. More complex deployments can be achieved by using
+cloud-init and/or juju in conjunction with MAAS. You could also use
+other orchestration tools but they likely won't be as well
+integrated.<br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><font size="+2"><span class=
+"ms-rteFontSize-3"><br></span></font></div>
+<div><font size="+2"><span class=
+"ms-rteFontSize-4">BIND</span></font></div>
+<div><br></div>
+<div><span class="ms-rteFontSize-3">MAAS nodes obtain their DNS
+info via DNS forwarding but&nbsp;the DNS server (bind9) on
+our&nbsp;MAAS controller wasn't accepting external requests. The
+fix was to comment out the&nbsp;<strong>listen
+on</strong>&nbsp;line in
+<strong>/etc/bind/named.conf.options</strong>. We also experienced
+issues with BIND not working because we had overlapping IPV4
+subnets configured in MAAS.<br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><font size="+2"><span class=
+"ms-rteFontSize-4">Troubleshooting</span></font></div>
+<div><span class="ms-rteFontSize-4"><br></span></div>
+<div><span class="ms-rteFontSize-3">If you are having issues
+deploying images with MAAS or Juju, the first thing to check is the
+controller status page in the MAAS web interface. It lists several
+services that need to be running for MAAS to function correctly.
+After a recent update, the <strong>maas-dhcpd</strong> service
+refused to start which prevented deployments succeeding. The
+fix&nbsp;was restarting the <strong>maas-rackd</strong>
+service.</span></div>
+<div><span class="ms-rteFontSize-3">&nbsp;</span><br></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div><font size="+2"><span class="ms-rteFontSize-4">SSDs vs
+separate boot and root disks</span></font></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div><span class="ms-rteFontSize-3">We have some Dell Poweredge
+R630s and R530's from circa 2015 which, even with the latest
+firmware, are unable to boot directly off NVME SSDs attached to a
+PCIe card. I have attempted to deploy Ubuntu 18.04 to them with the
+UEFI (boot) partition on the rotary (SAS/SATA) disk and the root
+partition on an NVME SSD but this configuration does not work under
+MAAS 2.4.2.&nbsp;</span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">In order to have a root
+partition on an NVME SSD with such hardware under MAAS, the
+firmware of the target machine(s) must be configured to boot in
+BIOS mode (instead of UEFI) and then you need to create a small
+(ext4) /boot partition on a SAS/SATA disk of 500 MB or so. You can
+then assign the root partition to a m.2&nbsp;NVME SSD attached to a
+PCIe card or similar.&nbsp;</span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div><span class="ms-rteFontSize-3">Seeing as MAAS currently only
+supports ZFS on UEFI machines, this means ZFS isn't an option for
+the root partition&nbsp;if you need to boot off a separate
+disk.</span><br></div>
+<p><br></p>
+</body>
+</html>
