@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html; charset=utf-8">
+<title>Configuring a Virtualmin server</title>
+</head>
+<body>
+<p><font size="+3"><span class="ms-rteFontSize-5">Configuring a
+Virtualmin server</span></font><br></p>
+<p><span class="ms-rteFontSize-3">This page outlines the&nbsp;key
+steps required to setup a new (Ubuntu) Virtualmin server with users
+home directories stored on a ZFS drive. The main advantage to doing
+this is that each user will have access to&nbsp;automatic snapshots
+of all the files in their home directory.&nbsp;Virtualmin doesn't
+officially support ZFS but it can be integrated nicely if you
+follow this guide.&nbsp;This guide assumes you have at least two
+drives available - one for the OS and another to store
+<strong>/home</strong> which will be formatted as ZFS.</span></p>
+<p><span class="ms-rteFontSize-3"><br></span></p>
+<p><font size="+2"><span class="ms-rteFontSize-4">Server
+Spec</span></font></p>
+<p><span class="ms-rteFontSize-3">As of June 2020, we have been
+running vmin v6.x&nbsp;under Ubuntu 18.04&nbsp;on a Azure VM with
+32 GB RAM and 8 VCPUS (reported as&nbsp;</span><span data-id=
+"sysinfo_cpu_type" class="ms-rteFontSize-3">Xeon&nbsp;E5-2673 v3 @
+2.40GHz, 8 cores)&nbsp;</span><span class="ms-rteFontSize-3">for
+about a year&nbsp;with approx 400 users/vmin subdomains. The RAM
+usage has averaged at about 24 GB but that may be
+higher&nbsp;because we're also using ZFS. 8 VCPUS was probably
+overkill though - I suspect&nbsp;4 would&nbsp;suffice because CPU
+usage seems to average very low, in single digit percentages.
+Whilst it has required the odd reboot to complete updates or solve
+DNS issues, there have been no complaints about its
+performance.</span><br></p>
+<p><span class="ms-rteFontSize-3"><br></span></p>
+<p><font size="+2"><span class="ms-rteFontSize-4">Creating a ZFS
+<strong>/home</strong> directory</span></font><br></p>
+<p><span class="ms-rteFontSize-3">Ubuntu 19.10 and later
+versions&nbsp;will have support for creating ZFS on root
+installations but I used Ubuntu 18.04 with <strong>/home</strong>
+located on an ext4 drive&nbsp;to install Virtualmin. ZFS would be
+preferable for the root drive too but it doesn't really matter what
+filesystem is used for the main OS drive.</span></p>
+<p><span class="ms-rteFontSize-3">Let's assume the drive we are
+going to use for the ZFS <strong>/home</strong> directory is
+<strong>/dev/sdc</strong>. First we'll install the ZFS utils,
+create a Solaris partition&nbsp;and create a ZFS&nbsp;pool on that
+called zhome. All these commands need to be run as root:</span></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div>#&nbsp;apt update &amp;& apt upgrade<br></div>
+<div>#&nbsp;apt install zfsutils-linux</div>
+<div># sgdisk --zap-all /dev/sdc</div>
+<div># sgdisk --new=1:0:0 --typecode=1:BF00 /dev/sdc</div>
+<div># zpool create -o ashift=12 -o autoexpand=on -o autoreplace=on
+-O atime=off -O compression=lz4 zhome /dev/sdc1<br></div>
+</div>
+<p><br></p>
+<p><span class="ms-rteFontSize-3">Next we'll create a dataset
+called home on our new pool, copy the existing
+<strong>/home</strong> into it, delete the old
+<strong>/home</strong> and mount the new one:</span><br></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div># mkdir /tmp/home</div>
+<div># rsync -rav&nbsp;/home/ /tmp/home/<br></div>
+<div># rm -rf /home/</div>
+<div># zfs create&nbsp;zhome/home</div>
+<div># zfs create zhome/arc</div>
+<div># chmod o-rwx /zhome/arc/&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; # Stop
+non-root users accessing files in the backup dir<br></div>
+<div># zfs set overlay=on zhome<br></div>
+<div># zfs set mountpoint=/home zhome/home</div>
+<div># rsync -rav&nbsp;/tmp/home/ /home/<br></div>
+</div>
+<div><br></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">We will use the
+<strong>/zhome/arc</strong> dataset to store backups of vmin user
+accounts. After these steps, it is probably&nbsp;worthwhile
+rebooting to check all is well and that your <strong>/home</strong>
+has been successfully relocated onto the ZFS disk.</span><br></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">If&nbsp;<strong>/home</strong>
+isn't being mounted (imported) at boot, delete or rename
+<strong>/etc/zfs/zpool.cache</strong></span></div>
+<p><br></p>
+<p><font size="+2"><span class="ms-rteFontSize-4">Set hostname and
+FQDN</span></font><br></p>
+<p><span class="ms-rteFontSize-3">Before downloading and running
+the install script for Virtualmin, it is recommended to ensure the
+hostname (in <strong>/etc/hostname</strong>&nbsp;)&nbsp;and Fully
+Qualified Domain Name are set correctly. Setting the FQDN is as
+simple as adding a line such as the following&nbsp;to
+<strong>/etc/hosts</strong> :</span><br></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+127.0.1.1 hornhq.unicornfoundation.co.uk hornhq<br></div>
+<p><br></p>
+<p><font size="+2"><span class="ms-rteFontSize-4">Running the
+Virtualmin install script and Install Wizard</span></font><br></p>
+<p><span class="ms-rteFontSize-3">The Virtualmin install script
+expects to be run as root&nbsp;on a clean install of Ubuntu LTS,
+Debian or RHEL. Refer to the website for download instructions but
+it is likely to be:</span></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div>#&nbsp;wget
+http://software.virtualmin.com/gpl/scripts/install.sh</div>
+<div># sh ./install.sh<br></div>
+</div>
+<p><br></p>
+<p><span class="ms-rteFontSize-3">After the install script has
+completed, it will give a warning about not being able to set
+quotas on /home. This can be safely&nbsp;ignored because we will
+set users disk quotas in a custom shell script that will be run
+when creating new users/domains. Before logging into Virtualmin and
+running its install wizard, you will need to ensure at
+least&nbsp;incoming TCP ports 10000 (for the web interface) and 53
+(for DNS) are open. You can use your normal Linux credentials to
+login to vmin.&nbsp;When the wizard prompts you for the nameserver,
+enter the FQDN of the virtualmin box.</span><br></p>
+<p><span style="font-size: 17.3333px;"><br></span></p>
+<p><font size="+2"><span class="ms-rteFontSize-4">Setting up
+DNS</span></font></p>
+<p><span class="ms-rteFontSize-3">In order for Virtualmin to be
+able to create new subdomains for each user, you first need to have
+a wildcard domain set up with your domain&nbsp;registrar that
+points at the public IP of the virtualmin server. In addition to
+that, there are a couple of settings to configure in
+webmin.</span></p>
+<p><span class="ms-rteFontSize-3"><br></span></p>
+<p><span class="ms-rteFontSize-3"><span style=
+"font-size: 17.3333px;">MySQL will not function correctly if DNS
+isn't properly configured.&nbsp;<span style=
+"font-size: 17.3333px;">You can check your currenty configured
+nameservers by&nbsp;running&nbsp;</span><strong style=
+"font-size: 17.3333px;">systemd-resolve
+--status</strong><span style=
+"font-size: 17.3333px;">.&nbsp;</span></span>To
+correctly&nbsp;configure your vmin servers'&nbsp;nameservers, you
+need to have it point
+to&nbsp;<strong>127.0.0.1</strong>&nbsp;(localhost- this is where
+our vmin&nbsp;bind DNS server is running) and the address of your
+hosting
+providers&nbsp;nameserver&nbsp;(<strong>168.63.129.16</strong> for
+Azure), presuming they have one. <span style=
+"font-size: 17.3333px;">Setting DNS servers via
+<strong>networkd-resolved</strong> didn't work nor
+did&nbsp;setting&nbsp;the&nbsp;nameservers&nbsp;via&nbsp;the&nbsp;Azure&nbsp;network&nbsp;adapter&nbsp;settings.&nbsp;</span></span><span style="font-size: 13pt;">To&nbsp;have&nbsp;my&nbsp;vmin&nbsp;DNS&nbsp;server&nbsp;settings&nbsp;persist&nbsp;I&nbsp;had&nbsp;to&nbsp;install&nbsp;</span><strong style="font-size: 13pt;">resolvconf</strong><span style="font-size: 13pt;">&nbsp;on&nbsp;the&nbsp;vmin&nbsp;server&nbsp;and
+add&nbsp;the entries&nbsp;to&nbsp;</span><span class=
+"ms-rteThemeFontFace-1 ms-rteFontSize-3" style=
+"color: #000000;"><strong>/etc/resolvconf/resolv.conf.d/head&nbsp;</strong></span><span style="font-size: 17.3333px;">like
+so:</span></p>
+<p><span style="font-size: 17.3333px;"><br></span></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div><span class="ms-rteFontSize-3">nameserver
+127.0.0.1</span></div>
+<div><span class="ms-rteFontSize-3">nameserver
+168.63.129.16</span><br></div>
+</div>
+<p><br></p>
+<p><span style="font-size: 13pt;">Finally, under Webmin, go
+to</span> <strong style="font-size: 13pt;">Servers -&gt; BIND DNS
+server</strong> <span style="font-size: 13pt;">and under
+'</span><strong style="font-size: 13pt;">Existing DNS
+zones</strong><span style="font-size: 13pt;">' click
+'</span><strong style="font-size: 13pt;">Create master
+zone</strong><span style="font-size: 13pt;">' then&nbsp;type the
+FQDN of the vmin server into the '</span><strong style=
+"font-size: 13pt;">Domain name / Network</strong><span style=
+"font-size: 13pt;">' and&nbsp;'</span><strong style=
+"font-size: 13pt;">Master server</strong><span style=
+"font-size: 13pt;">' fields before clicking '</span><strong style=
+"font-size: 13pt;">Create</strong><span style="font-size: 13pt;">'
+to add the zone. You must append a full stop when entering the
+Master server FQDN.&nbsp;</span><span style=
+"font-size: 13pt;">N</span><span style="font-size: 13pt;">ote that
+I've documented a&nbsp;fix to a common bind DNS server config error
+on the</span> <a href=
+"/sites/sc02/TS018/CSSE%20wiki/virtualmin%20fixes.aspx" style=
+"font-size: 13pt;">virtualmin fixes page</a> <span style=
+"font-size: 13pt;">that has hit me a couple of times&nbsp;when I
+forgot to add the full stop.</span></p>
+<p><br></p>
+<p><font size="+2"><span class="ms-rteFontSize-4">Integrating
+ZFS</span></font></p>
+<p><span class="ms-rteFontSize-3">As previously mentioned,
+Virtualmin doesn't officially support ZFS so we have to add the
+missing functionality. The following script will create a new ZFS
+dataset and apply a quota to it for every new user/domain created
+either via the web interface or with a&nbsp;script/command line. It
+will also destroy the dataset when the domain/user is deleted. Note
+that destroying the dataset will fail if the user is logged into
+their home directory via SSH at the time of deletion. I store this
+script
+under&nbsp;<strong>/usr/local/bin/vmin-zfs-domain.sh</strong>:</span></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div>#!/bin/sh</div>
+<div>if [ "$VIRTUALSERVER_ACTION" = "CREATE_DOMAIN" ]; then</div>
+<div>&nbsp; /sbin/zfs create zhome/home/$VIRTUALSERVER_USER</div>
+<div>&nbsp; /sbin/zfs set refquota=300M
+zhome/home/$VIRTUALSERVER_USER</div>
+<div>fi</div>
+<div>if [ "$VIRTUALSERVER_ACTION" = "DELETE_DOMAIN" ]; then</div>
+<div>&nbsp; /sbin/zfs destroy
+-r&nbsp;zhome/home/$VIRTUALSERVER_USER</div>
+<div>fi</div>
+</div>
+<div><br>
+<span class="ms-rteFontSize-3">Change the refquota value to the
+amount of disk space you wish for&nbsp;users to have&nbsp;by
+default. This can be modified later per user/dataset using
+<strong>zfs set</strong>.&nbsp;After you have created that script
+and set it to be executable, we need to tell Virtualmin when to run
+it by going to <strong>System Settings -&gt; Virtualmin
+Configuration -&gt; Actions upon server and user creation</strong>
+and pasting the full path to the script in the field next to
+'<strong>Command to run before making changes to a server</strong>'
+before clicking Save.</span><br class="ms-rteFontSize-3"></div>
+<p><br></p>
+<p><font size="+2"><span class="ms-rteFontSize-4">SSL
+certs</span></font><br></p>
+<p><span class="ms-rteFontSize-3">Virtualmin has integrated support
+for adding and renewing&nbsp;Let's Encrypt SSL certificates. First
+you need to install the requred packages with:<br></span></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-2"># apt&nbsp;install letsencrypt
+python3-certbot-apache</span><br></div>
+<p><span class="ms-rteFontSize-3"><br></span></p>
+<p><span class="ms-rteFontSize-3">To enable SSL for all hosted
+subdomains go to <strong>Virtualmin -&gt; System Settings -&gt;
+Features and Plugins</strong> then ensure the&nbsp;<strong>SSL
+website</strong> feature is not only ticked in the checkbox to the
+left of that option but also check the
+<strong>Default</strong>&nbsp;checkbox&nbsp;to the right of it then
+click <strong>Save</strong>. <span style=
+"box-sizing: border-box; font-family: &quot;segoe ui&quot;, system-ui, &quot;apple color emoji&quot;, &quot;segoe ui emoji&quot;, sans-serif;">
+Doing this should create new users a self-signed SSL cert but it
+doesn't always seem to work in which case users&nbsp;should go to
+<strong>Server configuration -&gt; SSL certificate</strong> and
+check <strong>Time until Expiry</strong> at the bottom of the
+<strong>Current Certificate</strong> page. If the cert has expired
+(it probably never existed), they just need to click on
+<strong>Create Self-Signed Certificate</strong> then
+<strong>Generate Self-Signed Key</strong>.</span><br></span></p>
+<p><span class="ms-rteFontSize-3"><br></span></p>
+<p><span class="ms-rteFontSize-3">If you enable <strong>System
+Settings -&gt; Virtualmin Configuration -&gt; SSL settings -&gt;
+Request Let's Encrypt certificate at domain creation time</strong>
+virtualmin will request LE certs when creating new
+accounts.<br></span></p>
+<p><span class="ms-rteFontSize-3">See also&nbsp;<a href=
+"https://github.com/diafygi/acme-nosudo">acme-nosudo</a>&nbsp;and&nbsp;<a href="https://github.com/zenhack/simp_le"
+style=
+"text-decoration-line: underline;">simp_le</a>&nbsp;.<br></span></p>
+<p><span class="ms-rteFontSize-3"><br></span></p>
+<p><span class="ms-rteFontSize-4"><font size="+2">Fixing the Webmin
+portal&nbsp;SSL cert and key paths</font><br></span></p>
+<p><span class="ms-rteFontSize-3">After you initially install
+LetsEncrypt under Webmin, if you look under <strong>Webmin -&gt;
+Webmin Configuration -&gt; SSL encryption -&gt; SSL
+Settings</strong>
+tab&nbsp;you&nbsp;will&nbsp;see&nbsp;input&nbsp;boxes
+for&nbsp;your&nbsp;sites Private (SSL) Key File and the certificate
+file. The installer creates certs in and configures these paths to
+<strong>/etc/webmin/letsencrypt-key.pem</strong> for the key and
+<span><span class=
+"ms-rteFontSize-3"><strong>/etc/webmin</strong></span></span><strong>/</strong><strong>letsencrypt-cert.pem</strong>
+for the cert but these need to be changed to:<br></span></p>
+<p><span class="ms-rteFontSize-3"><br></span></p>
+<p><span class="ms-rteFontSize-3"><strong>Private key
+file:</strong>
+/etc/letsencrypt/live/hornhq.unicornfoundation.co.uk/privkey.pem<br>
+
+<strong>Certificate file:</strong>
+/etc/letsencrypt/live/hornhq.unicornfoundation.co.uk/cert.pem</span><br>
+</p>
+<p><br></p>
+<p><font size="+2"><span class=
+"ms-rteFontSize-4">MySQL</span></font><br></p>
+<p><span class="ms-rteFontSize-3">The MySQL server only allows
+access from localhost by default. To allow users to login to the
+MySQL server from anywhere (</span> <span class=
+"ms-rteFontSize-3"><span class="ms-rteFontSize-3">
+<meta http-equiv="content-type" content=
+"text/html; charset=windows-1252"><span dir="none"><span class=
+"ms-rteFontSize-3">eg to allow people to use MySQL
+Workbench)</span></span></span> you must
+edit&nbsp;<strong>/etc/mysql/mysql.conf.d/mysqld.cnf</strong> ,
+find the <strong>bind-address</strong> line and change its value
+from <strong>127.0.0.1</strong> to <strong>0.0.0.0</strong> then
+restart the mysql server. It is also required
+to&nbsp;open&nbsp;incoming port 3306 for the VMs network interface
+under Azure.</span><br></p>
+<p><span class="ms-rteFontSize-3">You may also need to add the
+following lines to the same file under the&nbsp;<span style=
+"font-size: 17.3333px;"><strong>[mysqld]</strong>
+section&nbsp;</span>to prevent MySQL trying to resolve
+IP&nbsp;addresses, which has caused issues for some
+students:<br></span></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div><span class="ms-rteFontSize-3">skip-host-cache</span></div>
+<div><span class="ms-rteFontSize-3">skip-name-resolve</span></div>
+</div>
+<p><span class="ms-rteFontSize-3">We also experienced&nbsp;issues
+where students weren't closing their database connections from
+within php and they were using all of the available connections so
+the following options were also added to [mysqld] to time
+connections out faster and limit the number of connections per
+user:</span></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div><span class=
+"ms-rteFontSize-3">max_connections=750</span></div>
+<div><span class=
+"ms-rteFontSize-3">max_user_connections=10</span></div>
+<div><span class=
+"ms-rteFontSize-3">interactive_timeout=180</span></div>
+<div><span class=
+"ms-rteFontSize-3">wait_timeout=18<br></span></div>
+</div>
+<div><span class="ms-rteFontSize-4"><span class=
+"ms-rteFontSize-4"><br></span></span></div>
+<div><span class="ms-rteFontSize-3">It is also important to
+restrict the size of the temporary db or else it can eat all of the
+free space on your root disk (if you've not&nbsp;mounted /var on a
+separate disk) over time by adding this line to
+mysqld.cnf:<br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<code class="ms-rteFontSize-3">innodb_temp_data_file_path =
+ibtmp1:12M:autoextend:max:5G</code></div>
+<div><span class="ms-rteFontSize-4"><br>
+<br></span></div>
+<div><span class="ms-rteFontSize-4"><br></span></div>
+<font size="+2">Disable unwanted Virtualmin&nbsp;plugins and
+features</font>
+<p><span class="ms-rteFontSize-3">There are a few virtualmin
+plugins that are enabled by default that you may want to disable
+before adding users. <strong>Webalizer</strong> and
+<strong>awstats</strong> are log file analysers
+which&nbsp;both&nbsp;create files in every users
+<strong>~/public_html</strong>&nbsp;directory. Most users are
+unlikely to use these so best to disable them to avoid the
+confusion. The DAV Login plugin should also be disabled to increase
+security unless it is being used.</span></p>
+<p><span class="ms-rteFontSize-3"><br></span></p>
+<p><span class="ms-rteFontSize-3"><br></span></p>
+<p><font size="+2"><span class="ms-rteFontSize-4">Creating extra
+master admin users</span></font></p>
+<p><span class="ms-rteFontSize-3">Go to&nbsp;<strong>Webmin -&gt;
+Webmin Users -&gt; Create a new Privileged user.</strong> On the
+<strong>Create Webmin User</strong> page, expand the Available
+Webmin modules tab and click <strong>Select All</strong>, enter a
+username and password then click
+<strong>Create.</strong></span></p>
+<p><span class="ms-rteFontSize-3"><strong><br></strong></span></p>
+<p><span class="ms-rteFontSize-3"><strong><br></strong></span></p>
+<p><font size="+2"><span class="ms-rteFontSize-4">Customising the
+login screen</span></font></p>
+<p><span class="ms-rteFontSize-3">First you need to find the name
+of the key of the item you wish to edit (eg
+login_message)&nbsp;within&nbsp;<strong>/usr/share/webmin/authentic-theme/lang/en.UTF8</strong>
+then you create a file
+called&nbsp;<strong>/etc/webmin/authentic-theme/custom-lang</strong>
+containing that key and its desired value. Changes made this way
+will survive updates. Our
+<strong>custom-lang</strong>&nbsp;file&nbsp;currently just
+contains:</span></p>
+<p><span class="ms-rteFontSize-3"><br></span></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3">login_message=You must enter a
+username and password to login. Only use lowercase letters for your
+user name eg abc123<br></span></div>
+<p><span class="ms-rteFontSize-3"><br></span></p>
+<p><span class="ms-rteFontSize-3"><br></span></p>
+<p><font size="+2"><span class="ms-rteFontSize-4">User password
+recovery module</span></font></p>
+<p><span class="ms-rteFontSize-3">Virtualmin doesn't install the
+password recovery module by default. Under Ubuntu/Debian you need
+to install the
+package&nbsp;<strong>webmin-virtualmin-password-recovery</strong>
+which will add a new password recovery button to the login screen.
+The virtualmin server must be <a href=
+"/sites/sc02/TS018/CSSE%20wiki/Configure%20postfix%20to%20send%20mail%20via%20gmail.aspx">
+configured to send emails</a> for the password recovery module to
+work.</span><br></p>
+<p><span class="ms-rteFontSize-3">We didn't think that
+the&nbsp;labeling of the user name input box on the password
+recovery window was very clear. By default it says "Virtualmin
+administration login" but you can change&nbsp;the
+<strong>index_user</strong> message&nbsp;by
+editing&nbsp;<strong>/usr/share/webmin/virtualmin-password-recovery/lang/en</strong>
+so it looks something like this:<br></span></p>
+<p><span class="ms-rteFontSize-3"><br></span></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3">index_user=Your user name. Only use
+lowercase letters eg abc123</span></div>
+<div><br></div>
+<p><br></p>
+<p><font size="+2"><span class="ms-rteFontSize-4">fail2ban
+and&nbsp;timezones</span></font><br></p>
+<p><span class="ms-rteFontSize-3">fail2ban will not work
+unless&nbsp;your timezone is configured correctly because it works
+off&nbsp;comparing&nbsp;the timestamps in various&nbsp;log files,
+as I eventually discovered after having set my timezone to UTC and
+wondered why I could not get f2b working with neither
+<strong>iptables</strong> nor <strong>ufw</strong>. Set the
+timezone for London&nbsp;with:<br></span></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3">$ sudo timedatectl set-timezone
+Europe/London<br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><strong>fail2ban</strong> is
+not fully&nbsp;enabled after installing virtualmin, even if the
+service is enabled and running. To properly enable it&nbsp;and
+enable support for monitoring the mysql logs&nbsp;you must have
+iptables running and&nbsp;add the following lines
+to&nbsp;&nbsp;<strong>/etc/fail2ban/jail.local</strong>:</span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div>
+<div><span class="ms-rteFontSize-3">[DEFAULT]</span></div>
+<div><span class="ms-rteFontSize-3">banaction =
+iptables-multiport</span><br></div>
+</div>
+<div><code class=
+"ms-rteThemeFontFace-1 ms-rteFontSize-3"><br></code></div>
+<div><code class=
+"ms-rteThemeFontFace-1 ms-rteFontSize-3">[mysqld]</code><code class="ms-rteThemeFontFace-1 ms-rteFontSize-3"><br>
+</code></div>
+<div><code class="ms-rteThemeFontFace-1 ms-rteFontSize-3">log =
+/var/log/mysql/access.log</code><code class=
+"ms-rteThemeFontFace-1 ms-rteFontSize-3"><br></code></div>
+<div><code class="ms-rteThemeFontFace-1 ms-rteFontSize-3">log_error
+= /var/log/mysql/error.log</code><code class=
+"ms-rteThemeFontFace-1 ms-rteFontSize-3"><br></code></div>
+<div><code class=
+"ms-rteThemeFontFace-1 ms-rteFontSize-3">log_warnings =
+2</code></div>
+</div>
+<p><br></p>
+<p><span class="ms-rteFontSize-3">After adding those lines and
+restarting the <strong>fail2ban</strong> service you should start
+seeing a list of blocked IP addresses in&nbsp;the f2b-sshd chain
+when you run <strong>iptables -L</strong> as root.<br></span></p>
+<p><span class="ms-rteFontSize-3"><br>
+<font size="+2"><span class=
+"ms-rteFontSize-4">postgreSQL</span></font><br></span></p>
+<p><span class="ms-rteFontSize-3">Virtualmin supports postgreSQL
+being used alongside mysql but the vmin installation script does
+not install the postgreSQL server packages by default. If you are
+logged into vmin or webmin as an admin user and you enable
+postgreSQL it will install the required packages for you but at
+least a couple of files need to be modified before postgres is
+usable with a remote client.<br></span></p>
+<p><span class=
+"ms-rteFontSize-3"><strong>/etc/postgresql/10/main/postgresql.conf</strong>
+needs to be edited&nbsp;so that it reads <strong>listen_addresses =
+'*'</strong> instead of <span><span class=
+"ms-rteFontSize-3"><strong>listen_addresses = 'localhost'</strong>
+and you must also edit
+<strong>/etc/postgresql/10/main/pg_hba.conf</strong> to add a line
+like this to allow password logins from the
+internet:<br></span></span></span></p>
+<p><span class="ms-rteFontSize-3"><span><span class=
+"ms-rteFontSize-3"><br></span></span></span></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<p><span class="ms-rteFontSize-3"><span><span class=
+"ms-rteFontSize-3">host&nbsp;&nbsp;&nbsp;
+all&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+all&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+0.0.0.0/0&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+md5<br></span></span></span></p>
+</div>
+<p><span class="ms-rteFontSize-3"><span><span class=
+"ms-rteFontSize-3"><br></span></span></span></p>
+<p><span class="ms-rteFontSize-3"><span><span class=
+"ms-rteFontSize-3">After changing these files run
+<strong>systemctl&nbsp;restart postgresql</strong> for them to take
+effect. You will also need to open incoming TCP port
+<strong>5432</strong> for your VMs security
+group.<br></span></span></span></p>
+<p><span class="ms-rteFontSize-3"><span><span class=
+"ms-rteFontSize-3"><br></span></span></span></p>
+<p><span class="ms-rteFontSize-3"><span><span class=
+"ms-rteFontSize-3"><font size="+2"><span class=
+"ms-rteFontSize-4">postegreSQL and
+fail2ban</span></font><br></span></span></span></p>
+<p><span class="ms-rteFontSize-3"><span><span class=
+"ms-rteFontSize-3">As of Ubuntu 18.04, <strong>fail2ban</strong>
+does not include a filter for use with postgresql to help prevent
+brute force attacks so we have to create a custom
+one.<br></span></span></span></p>
+<p><span class="ms-rteFontSize-3"><span><span class=
+"ms-rteFontSize-3"><span><span class=
+"ms-rteFontSize-3"><span><span class="ms-rteFontSize-3">Edit
+<strong>/etc/postgresql/10/main/postgresql.conf</strong> and change
+<strong>log_line_prefix</strong> to:<br>
+<br></span></span></span></span></span></span></span></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3">log_line_prefix = '%h %m [%p]
+%q%u@%d '</span><br></div>
+<p><span class="ms-rteFontSize-3"><span><span class=
+"ms-rteFontSize-3"><br></span></span></span></p>
+<p><span class="ms-rteFontSize-3"><span><span class=
+"ms-rteFontSize-3">Then restart postgresql with <strong>systemctl
+restart postgresql</strong><br></span></span></span></p>
+<p><span class="ms-rteFontSize-3"><span><span class=
+"ms-rteFontSize-3"><br></span></span></span></p>
+<p><span class="ms-rteFontSize-3"><span><span class=
+"ms-rteFontSize-3">Create the filter file
+<strong>/etc/fail2ban/filter.d/custom-postgres.conf</strong>
+:<br></span></span></span></p>
+<p><span class="ms-rteFontSize-3"><span><span class=
+"ms-rteFontSize-3"><br></span></span></span></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<p><span class="ms-rteFontSize-3"><span><span class=
+"ms-rteFontSize-3">[Definition]<br>
+failregex = ^&lt;HOST&gt;.+FATAL:&nbsp; password authentication
+failed for user.+$<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+&nbsp; &nbsp;&nbsp;&nbsp; ^&lt;HOST&gt;.+FATAL:&nbsp; no
+pg_hba.conf entry for host .+$<br>
+ignoreregex = duration:#<br></span></span></span></p>
+</div>
+<p><span class="ms-rteFontSize-3"><span><span class=
+"ms-rteFontSize-3"><br></span></span></span></p>
+<p><span class="ms-rteFontSize-3"><span><span class=
+"ms-rteFontSize-3">Next create a jail for postgres by adding the
+following lines to
+<strong>/etc/fail2ban/jail.local</strong><br></span></span></span></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<p><span class="ms-rteFontSize-3"><span><span class=
+"ms-rteFontSize-3">[custom-postgres]<br>
+enabled&nbsp; = true<br>
+filter&nbsp;&nbsp; = custom-postgres<br>
+action&nbsp;&nbsp; = iptables[chain="INPUT",
+name="PostgreSQL-Server", port="5432", protocol="tcp",
+returntype="RETURN", lockingopt="-w"]<br>
+logpath&nbsp; = /var/log/postgresql/postgresql-10-main.log<br>
+maxretry = 3<br></span></span></span></p>
+</div>
+<p><span class="ms-rteFontSize-3"><span><span class=
+"ms-rteFontSize-3"><br></span></span></span></p>
+<p><span class="ms-rteFontSize-3"><span><span class=
+"ms-rteFontSize-3">Finally, restart fail2ban with <strong>systemctl
+restart fail2ban</strong><br></span></span></span></p>
+<p><span class="ms-rteFontSize-3"><span><span class=
+"ms-rteFontSize-3"><br></span></span></span></p>
+<p><span class="ms-rteFontSize-3"><span><span class=
+"ms-rteFontSize-3"><font size="+2"><span class=
+"ms-rteFontSize-4">email</span></font><br></span></span></span></p>
+<p><span class="ms-rteFontSize-3"><span><span class=
+"ms-rteFontSize-3">Virtualmin supports using postfix and dovecot as
+email servers. I have yet to test this&nbsp;but to be honest I'd
+rather not bother. Users who want to send email from their sites
+can use <a href=
+"https://github.com/PHPMailer/PHPMailer">PHPMailer</a>.<br></span></span></span></p>
+<p><span class="ms-rteFontSize-3"><span><span class=
+"ms-rteFontSize-3"><br></span></span></span></p>
+<p><span class="ms-rteFontSize-3"><span><span class=
+"ms-rteFontSize-3"><font size="+2"><span class=
+"ms-rteFontSize-4">Upgrading
+PHP</span></font><br></span></span></span></p>
+<p><span class="ms-rteFontSize-3"><span><span class=
+"ms-rteFontSize-3">Virtualmin supports having multiple versions
+of&nbsp;php installed. If you need to install a newer version
+of&nbsp;php than is included&nbsp;in
+the&nbsp;Ubuntu&nbsp;repos&nbsp;then&nbsp;you can&nbsp;<a href=
+"https://www.virtualmin.com/documentation/web/multiplephp">follow&nbsp;this&nbsp;guide</a>.
+Not mentioned on that page is that you probably want to&nbsp;also
+run&nbsp;<strong>sudo apt&nbsp;remove&nbsp;php</strong>
+after&nbsp;installing&nbsp;the&nbsp;new php to&nbsp;remove
+the&nbsp;php&nbsp;metapackage.&nbsp;If&nbsp;you&nbsp;don't&nbsp;do
+this, the&nbsp;latest and greatest&nbsp;version&nbsp;of php
+will&nbsp;get installed from the 3rd party repo and&nbsp;it may or
+may not&nbsp;be&nbsp;properly supported&nbsp;by virtualmin
+and&nbsp;will require you to&nbsp;run&nbsp;<strong>virtualmin
+check-config</strong> to&nbsp;update virtualmins php
+config.<br></span></span></span></p>
+<p><br></p>
+<p><br></p>
+<p><font size="+2"><span class="ms-rteFontSize-4">Additional
+configuration</span></font><br></p>
+<p><span class="ms-rteFontSize-3">I have only really documented the
+parts of setting up Virtualmin here that I didn't think were well
+documented online, or not documented at all as was the case with
+the ZFS integration. You must create and configure at least one
+Server Template and one Account Plan to restrict what users can and
+cannot do before you start adding users, creating them&nbsp;using
+your&nbsp;templates and plans. You will also want to set up regular
+scrubs of the pool via a cron job and install zfs-auto-snapshot as
+covered on the <a href="/sites/sc02/TS018/CSSE%20wiki/ZFS.aspx">ZFS
+page</a>.</span><br></p>
+</body>
+</html>
