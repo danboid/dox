@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html; charset=utf-8">
+<title>Virtualmin maintenance</title>
+</head>
+<body>
+<p><span class="ms-rteFontSize-4"><font size="+3"><span class=
+"ms-rteFontSize-5">Virtualmin
+maintenance</span></font><br></span></p>
+<p><span class="ms-rteFontSize-4"><br></span></p>
+<p><span class="ms-rteFontSize-4"><font size="+2">Checking
+Virtualmin's config</font><br></span></p>
+<p><span class="ms-rteFontSize-4"><span class="ms-rteFontSize-3">If
+you are having problems with Virtualmin (vmin), it is worth
+running</span> <span class=
+"ms-rteFontSize-3"><strong>check-config</strong> to check for any
+errors in its config. This needs to be&nbsp;run after PHP gets
+updated with&nbsp;a&nbsp;new&nbsp;major version or a new
+minor&nbsp;point&nbsp;release series.</span> <span class=
+"ms-rteFontSize-3">You can&nbsp;check vmin's&nbsp;config under the
+web interface but I prefer to run it under the terminal because I
+find it easier to tell if its still running.</span> <span class=
+"ms-rteFontSize-3">This is only a potential issue if you have
+enabled&nbsp;a third party repo for newer php packages and not
+uninstalled the php metapackage.</span><br></span></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-2"># virtualmin
+check-config</span></div>
+<p><span class="ms-rteFontSize-3">Note that check-config does not
+check for the presence or validity of SSL certs.</span><br></p>
+<p><span class="ms-rteFontSize-3"><br></span></p>
+<p><span class="ms-rteFontSize-4"><font size="+2">SSL
+certs</font><br></span></p>
+<p><span class="ms-rteFontSize-4"><span class=
+"ms-rteFontSize-3"><span class="ms-rteFontSize-2"><span style=
+"box-sizing: border-box; font-family: &quot;segoe ui&quot;, system-ui, &quot;apple color emoji&quot;, &quot;segoe ui emoji&quot;, sans-serif;">
+When you&nbsp;create a&nbsp;new&nbsp;vmin user/domain, if the
+SSL&nbsp;website option is enabled then a self-signed SSL cert
+should be created for each user but it doesn't always seem to work
+in which case users&nbsp;should&nbsp;go to <strong>Server
+configuration -&gt; SSL certificate</strong> and check <strong>Time
+until Expiry</strong> at the bottom of the <strong>Current
+Certificate</strong> page. If the cert has expired (it probably
+never existed), they just need to click on <strong>Create
+Self-Signed Certificate</strong> then <strong>Generate Self-Signed
+Key</strong>.</span></span></span> <span class=
+"ms-rteFontSize-3">They should also be able to create and renew
+Let's Encrypt certs in a similar manner, if not already
+enabled.</span><br></span></p>
+<p><span class="ms-rteFontSize-4"><br></span></p>
+<p><font size="+2"><span class="ms-rteFontSize-4">Unblocking
+users</span></font></p>
+<p><span class="ms-rteFontSize-2">If a user tries to login to vmin
+with an incorrect password too many times in a row they can get
+blocked from logging in. In most cases this can be fixed by
+running:</span></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-2">$ sudo systemctl restart
+webmin<br></span></div>
+<p><span class="ms-rteFontSize-2">Via ssh on the *min server to
+restart webmin and clear the blocked users.&nbsp;</span></p>
+<p><span style="font-size: 11pt;">Otherwise, they may have had
+their SSH access blocked&nbsp;by fail2ban if they got
+their&nbsp;SSH password wrong too many times consecutively. To
+check if that is so, ask them to
+visit&nbsp;<strong>https://www.whatsmyip.org/</strong> or use a
+similar service so that they can send you&nbsp;their public IP.
+Check to see if their&nbsp;public IP&nbsp;is listed in the output
+of:</span><br></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-2">$ sudo&nbsp;fail2ban-client status
+sshd<br></span></div>
+<p><span class="ms-rteFontSize-2">If it is, you can unblock their
+IP by running this on the *min server:</span></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span style="font-size: 11pt;">$ sudo fail2ban-client set sshd
+unbanip USERSPUBLICIPADDRESSHERE</span></div>
+<p><span class="ms-rteFontSize-2">For both of the&nbsp;previous two
+commands, replace <strong>sshd</strong> with either
+<strong>webmin-auth</strong>, <strong>mysqld-auth</strong> or
+<strong>custom-postgres</strong> to view the IPs blocked by or to
+unban someone from the specified jail.</span><br></p>
+<p><span class="ms-rteFontSize-2"><br></span></p>
+<p><span class="ms-rteFontSize-2"><span class=
+"ms-rteFontSize-4"><span style="font-size: 24px;">Resetting a
+Virtualmin users password from the web
+interface</span><br></span></span></p>
+<p><span class="ms-rteFontSize-2">Find the user whose password you
+wish to reset in the vmin tab dropdown in the upper left (when
+logged in as an admin user) then go to <strong>Edit Virtual Server
+-&gt; Configurable settings -&gt; Administration password -&gt; Set
+to.</strong> Enter a new password then click <strong>Save Virtual
+Server.</strong></span></p>
+<p><span class="ms-rteFontSize-2"><span class=
+"ms-rteFontSize-4"><br></span></span></p>
+<p><span class="ms-rteFontSize-2"><font size="+2"><span class=
+"ms-rteFontSize-4">Resetting a Virtualmin users password from the
+terminal</span></font><br></span></p>
+<p><span class="ms-rteFontSize-2">Usually, users should be able to
+reset their own passwords by clicking on the Password
+recovery&nbsp;icon&nbsp;on the Webmin login page. If you have
+forgotten the admin users password and you can't log in to
+Virtualmin to reset users passwords because the administrator
+password has been lost or Virtualmin's&nbsp;web&nbsp;interface is
+running too slowly, you can SSH onto&nbsp;the&nbsp;vmin&nbsp;server
+and run a command such as this to reset the *min
+passwords:<br></span></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<p><span class="ms-rteFontSize-2">sudo
+/usr/share/webmin/changepass.pl /etc/webmin administrator
+MyNewPassword<br></span></p>
+</div>
+<div><span class="ms-rteFontSize-2"><br></span></div>
+<div><span class="ms-rteFontSize-2">Replace
+<strong>administrator</strong> with the user whose password you
+want to reset and replace <strong>MyNewPassword</strong> with the
+new password.</span></div>
+<div><span class="ms-rteFontSize-2"><br></span></div>
+<div><font size="+2"><span class=
+"ms-rteFontSize-2"><br></span></font></div>
+<div><font size="+2"><span class="ms-rteFontSize-4">Adjusting users
+available disk space</span></font><br></div>
+<div><br></div>
+<div><span class="ms-rteFontSize-2">I configured vmin so as to
+create a ZFS dataset (analagous to&nbsp;a disk&nbsp;partition) for
+each user, thus giving each user snapshots of their home directory.
+To adjust the disk space available to a user, you must adjust the
+refquota value for that users dataset by running a command such as
+this on poseidon:</span><br></div>
+<div><br></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-2">sudo zfs set refquota=200M
+zhome/home/USERNAME<br></span></div>
+<div><br class="ms-rteFontSize-2"></div>
+<div><span class="ms-rteFontSize-2">Replace <strong>200M</strong>
+(you can also use G for GB etc) with the max disk space you want to
+allow and <strong>USERNAME</strong> with their user
+name.<br></span></div>
+<div><span class="ms-rteFontSize-2"><br></span></div>
+<div><span class="ms-rteFontSize-2"><a href=
+"https://github.com/danboid/dox/blob/main/virtualmin/zfsquota.sh">zfsquota</a>
+automates the process of increasing multiple users ZFS disk space
+quotas.<br></span></div>
+<div><span class="ms-rteFontSize-2"><br></span></div>
+<div>
+<div><br></div>
+<div><font size="+2"><span class="ms-rteFontSize-4">Fixing a common
+BIND DNS config&nbsp;error</span></font><br></div>
+<div><span class="ms-rteFontSize-4"><br></span></div>
+<div><span class="ms-rteFontSize-2">Virtualmin prevents you
+changing certain settings and may not function correctly if BIND
+(the DNS server) is mis-configured. A common BIND mis-configuration
+occurs when a DNS zone name has been entered without the trailing
+full stop. You can check your BIND configuration
+under&nbsp;</span><span style="font-size: 11pt;"><strong>Webmin
+-&gt; Servers-&gt; BIND DNS Server -&gt; Check BIND Config</strong>
+or by&nbsp;running <strong>named-checkconf -z</strong> . When
+running <strong>Check BIND Config</strong> I was getting the
+following error:</span></div>
+<div><span style="font-size: 11pt;"><br></span></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div><span class="ms-rteFontSize-2">Check BIND Config</span></div>
+<div><br class="ms-rteFontSize-2"></div>
+<div><span class="ms-rteFontSize-2">The following errors were found
+in the BIND configuration file /etc/bind/named.conf or referenced
+zone files ..</span></div>
+<div><br class="ms-rteFontSize-2"></div>
+<div><span class="ms-rteFontSize-2">&nbsp; &nbsp; zone DOMAIN/IN:
+NS 'DOMAIN' has no address records (A or AAAA)</span></div>
+<div><span class="ms-rteFontSize-2">&nbsp; &nbsp; zone DOMAIN/IN:
+not loaded due to errors.</span></div>
+<div><span class="ms-rteFontSize-2">&nbsp; &nbsp;
+_default/DOMAIN/IN: bad zone&nbsp;</span></div>
+</div>
+<div><br class="ms-rteFontSize-2"></div>
+<div>&nbsp; &nbsp;&nbsp;<br></div>
+<div><span class="ms-rteFontSize-2">I failed to work out how to fix
+it using the webmin UI so instead I edited&nbsp;</span><span style=
+"font-size: 11pt;"><strong>/</strong></span><span style=
+"font-size: 11pt;"><strong>var/lib/bind/domain.hosts</strong> on my
+vmin server,&nbsp;the last line of which read:</span></div>
+<div><span style="font-size: 11pt;"><br></span></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div><span class="ms-rteFontSize-2">DOMAIN IN A
+51.141.126.36</span></div>
+</div>
+<div><br class="ms-rteFontSize-2"></div>
+<div><span class="ms-rteFontSize-2">This line needed to be changed
+to:</span></div>
+<div><br class="ms-rteFontSize-2"></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div><span class="ms-rteFontSize-2">DOMAIN. IN A
+51.141.126.36</span></div>
+</div>
+<div><br class="ms-rteFontSize-2"></div>
+<div><span class="ms-rteFontSize-2">ie with a trailing period added
+to the domain name. Then run&nbsp;</span><span style=
+"font-size: 11pt;"><strong>sudo systemctl restart bind9</strong> to
+restart the bind server.</span></div>
+</div>
+<div><span class="ms-rteFontSize-2"><br></span></div>
+<div><span class="ms-rteFontSize-2"><br></span></div>
+<div><span class="ms-rteFontSize-2"><br></span></div>
+<div><font size="+2"><span class="ms-rteFontSize-4">Using Azure's
+vm repair extension for emergency recovery</span></font></div>
+<div><span class="ms-rteFontSize-4"><br></span></div>
+<div><span class="ms-rteFontSize-2">Our vmin server is currently
+hosted on&nbsp;Azure. There are some emergency
+recovery&nbsp;situations where restoring an Azure backup of a VM is
+not sufficient to fix your VM. One potential
+cause&nbsp;is&nbsp;mis-configured or buggy boot loaders as happened
+with a Ubuntu <a href=
+"https://bugs.launchpad.net/ubuntu/+source/grub2/+bug/1889556">GRUB2</a>&nbsp;<a href="https://bugs.launchpad.net/ubuntu/+source/grub2/+bug/1889509">update</a>
+in July of 2020 where the only fix that got our Azure Ubuntu VM to
+boot&nbsp;was to chroot into the afflicted VM and reinstall
+GRUB&nbsp;like so:</span><br></div>
+<div><br></div>
+<div><span class="ms-rteFontSize-2">You need&nbsp;to
+install&nbsp;the <a href=
+"https://docs.microsoft.com/en-us/cli/azure/install-azure-cli-apt?view=azure-cli-latest">
+Azure command line tools</a>,&nbsp;stop the Azure VM that you want
+to repair then do the following, which is <a href=
+"https://docs.microsoft.com/en-us/azure/virtual-machines/troubleshooting/repair-linux-vm-using-azure-virtual-machine-repair-commands">
+based on these instructions</a>:</span></div>
+<div><span class="ms-rteFontSize-2"><br></span></div>
+<div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div><span class="ms-rteFontSize-2">$ az extension add -n
+vm-repair</span></div>
+<div><span class="ms-rteFontSize-2">$ az vm repair create -g
+CONTROL-GROUP -n VMNAME --repair-username USER --repair-password
+PASSWORD --verbose</span></div>
+</div>
+<div><span class="ms-rteFontSize-2"><br></span></div>
+<div><span class="ms-rteFontSize-2">Use the Azure portal to find
+out the IP of the new recovery VM and&nbsp;ssh into it using the
+--repair username and password you supplied&nbsp;in the previous
+command&nbsp;then, if you wanted to re-install GRUB,
+you'd&nbsp;run:</span></div>
+<div><span style="font-size: 11pt;"><br></span></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div><span style="font-size: 11pt;">$ sudo su</span><br></div>
+<div><span class="ms-rteFontSize-2"># mkdir /rescue&nbsp; &nbsp;
+&nbsp; &nbsp; &nbsp; &nbsp;</span></div>
+<div><span class="ms-rteFontSize-2"># mount /dev/sdc1 /rescue&nbsp;
+&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;&nbsp;</span></div>
+<div><span class="ms-rteFontSize-2"># for fs in {proc,sys,tmp,dev};
+do mount -o bind /$fs /rescue/$fs; done&nbsp; &nbsp; &nbsp; &nbsp;
+&nbsp; &nbsp; &nbsp;</span></div>
+<div><span class="ms-rteFontSize-2"># cd /rescue</span></div>
+<div><span class="ms-rteFontSize-2"># chroot /rescue&nbsp; &nbsp;
+&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;</span></div>
+<div><span class="ms-rteFontSize-2"># lsblk&nbsp; &nbsp; &nbsp;
+&nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; &nbsp;
+&nbsp;#&nbsp;run this to check&nbsp;you have chrooted to&nbsp;the
+attached disk, usually /dev/sdc&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;
+&nbsp; &nbsp;</span></div>
+<div><span class="ms-rteFontSize-2"># grub-install /dev/sdc&nbsp;
+&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;&nbsp;</span></div>
+<div><span class="ms-rteFontSize-2"># exit&nbsp; &nbsp; &nbsp;
+&nbsp; &nbsp; &nbsp;&nbsp;</span></div>
+<div><span class="ms-rteFontSize-2"># cd /&nbsp; &nbsp; &nbsp;
+&nbsp; &nbsp; &nbsp;&nbsp;</span></div>
+<div><span class="ms-rteFontSize-2"># for fs in {proc,sys,tmp,dev};
+do umount /rescue/$fs; done&nbsp; &nbsp; &nbsp; &nbsp;
+&nbsp;&nbsp;</span></div>
+<div><span class="ms-rteFontSize-2"># umount /rescue</span></div>
+</div>
+<div><span class="ms-rteFontSize-2"><br></span></div>
+<div><span class="ms-rteFontSize-2">The above commands having been
+run in the recovery VM before running:<br></span></div>
+<div><br class="ms-rteFontSize-2"></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div><span class="ms-rteFontSize-2">$ az vm repair restore -n
+VMNAME -g CONTROLGROUP --verbose</span></div>
+</div>
+<div><span class="ms-rteFontSize-2"><br></span></div>
+<div><span class="ms-rteFontSize-2">On your machine to tidy up the
+clone VM and swap out the existing VM disk for the&nbsp;fixed one.
+You can now restart the VM.</span></div>
+</div>
+</body>
+</html>
