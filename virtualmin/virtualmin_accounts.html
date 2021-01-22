@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html; charset=utf-8">
+<title>Batch creation and removal of virtualmin accounts</title>
+</head>
+<body>
+<p><font size="+3"><span class="ms-rteFontSize-5">Batch creation
+and removal of virtualmin accounts</span></font><br></p>
+<p><span class="ms-rteFontSize-3">I failed to find any feature
+within the Virtualmin&nbsp;web interface to batch create
+users/domains so I wrote vermin. vermin creates user accounts and
+then emails their login details to&nbsp;the&nbsp;user if their
+account is created successfully. These scripts are really just a
+bunch of hacks until we get virtualmin configured as an LDAP
+client.</span><br></p>
+<p><br></p>
+<p><font size="+2"><span class="ms-rteFontSize-4">Create a users
+CSV file</span></font><br></p>
+<p><span class="ms-rteFontSize-3">Before you can run the script you
+have to create a csv file that lists every student you wish to
+create an account for, with one student per line. The username
+should be separated from the users email by&nbsp;a
+single&nbsp;comma&nbsp;with no spaces. The csv file should look
+something like this:</span></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<p><span class=
+"ms-rteFontSize-3">username1,email1@holyhorn.com</span></p>
+<p><span class=
+"ms-rteFontSize-3">username2,email2@holyhorn.com<br></span></p>
+<p><span class="ms-rteFontSize-3">...<br></span></p>
+</div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">Once you have created such a
+csv file, copy it onto your vmin server. The easiest way to do that
+is to open a new file under vim or nano via ssh then paste the text
+in and save it.</span></div>
+<div><br></div>
+<div><br></div>
+<div><font size="+2"><span class="ms-rteFontSize-4">Running
+vermin</span></font></div>
+<div><br></div>
+<div><span class="ms-rteFontSize-3">To create the new virtualmin
+user accounts, run vermin like so:<br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3">sudo vermin
+newusers.csv</span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">Replace
+<strong>newusers.csv</strong> with the name of your csv file.
+vermin keeps a log of (un)successfully created accounts in
+<strong>/var/log/vermin.log<br></strong></span></div>
+<div><span class=
+"ms-rteFontSize-3"><strong><br></strong></span></div>
+<div><span class=
+"ms-rteFontSize-3"><strong><br></strong></span></div>
+<div><span class="ms-rteFontSize-3">vermin is&nbsp;archived</span>
+<a href=
+"https://github.com/danboid/dox/blob/main/virtualmin/vermin.sh"><span class=
+"ms-rteFontSize-3">here</span></a><span class=
+"ms-rteFontSize-3">.</span></div>
+<div><br></div>
+<div><br></div>
+<div><br></div>
+<div><span class="ms-rteFontSize-4"><font size=
+"+2">nimrev</font><br></span></div>
+<div><span class="ms-rteFontSize-3"><a href=
+"https://github.com/danboid/dox/blob/main/virtualmin/nimrev.sh">nimrev</a> is the
+evil twin of vermin and can be used</span> <span class=
+"ms-rteFontSize-4"><span class="ms-rteFontSize-3">to
+batch&nbsp;REmoVe vmin users. It takes a text file for input with
+one user name per line.</span><br></span></div>
+<div><span class="ms-rteFontSize-4"><br></span></div>
+<div><span class="ms-rteFontSize-4"><br></span></div>
+<div><span class="ms-rteFontSize-4"><font size=
+"+2">mrvein</font><br></span></div>
+<div><span class="ms-rteFontSize-4"><span class=
+"ms-rteFontSize-3">We can work around&nbsp;Blackboard no longer
+displaying&nbsp;and exporting students email addresses by using
+<a href=
+"https://github.com/danboid/dox/blob/main/virtualmin/mrvein.sh">mrvein</a>.
+<a href=
+"https://github.com/danboid/dox/blob/main/virtualmin/mrvein.sh">mrvein</a>&nbsp;is
+a&nbsp;bash script that&nbsp;takes a list&nbsp;of&nbsp;usernames
+(one username per line) as input then uses <a href=
+"lookup.pl.zip">lookup.pl</a>
+to look up their email addresses from LDAP and outputs a csv file
+suitable for use with vermin.</span><br></span></div>
+<div><span class="ms-rteFontSize-4"><br></span></div>
+<div><span class="ms-rteFontSize-4"><br></span></div>
+<div><span class="ms-rteFontSize-4"><font size=
+"+2">vminarc</font><br></span></div>
+<div><span class="ms-rteFontSize-4"><span class=
+"ms-rteFontSize-3"><a href=
+"https://github.com/danboid/dox/blob/main/virtualmin/vminarc.sh">vminarc</a> works
+in much the same way as <strong>nimrev</strong>
+but&nbsp;it&nbsp;also backs up each users vmin account (their home
+dir and web site contents, databases, vmin settings etc) to
+<strong>/zhome/arc</strong> before removing the users vmin
+account.</span><br></span></div>
+<br>
+</body>
+</html>

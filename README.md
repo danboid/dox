@@ -13,3 +13,5 @@
 ## Virtualmin
 
 [Configuring a Virtualmin server](https://htmlpreview.github.io/?https://github.com/danboid/dox/blob/main/virtualmin/virtualmin_configuration.html)
+
+[Batch creation and removal of Virtualmin accounts](https://htmlpreview.github.io/?https://github.com/danboid/dox/blob/main/virtualmin/virtualmin_accounts.html)
