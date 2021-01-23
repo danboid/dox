@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html; charset=utf-8">
+<title>Zabbix server configuration</title>
+</head>
+<body>
+<p><span class="ms-rteFontSize-5"><font size="+3">Zabbix server
+configuration</font><br></span></p>
+<p>Zabbix is a free and open source application, OS, network and
+hardware monitoring solution. It claims it can scale&nbsp;to
+monitor network gear, Windows, Linux and most other OSs and and
+devices with up to 100's of thousands of&nbsp;monitored
+instances.</p>
+<p>Installing a barebones Zabbix server is relatively easy. The
+official installation instructions on the <a href=
+"https://www.zabbix.com/download?zabbix=4.0&amp;os_distribution=ubuntu&amp;os_version=18.04_bionic&amp;db=mysql">
+Zabbix download page</a> or in <a href=
+"https://www.zabbix.com/documentation/4.0/manual/installation/install_from_packages/debian_ubuntu">
+the manual</a> are easy to follow and don't need to be reproduced
+here so these are additional, post-install notes.<br></p>
+<p><br></p>
+<p><font size="+2"><span class="ms-rteFontSize-4">Zabbix server PHP
+config</span></font></p>
+<p>As of June 2019 there was an error in the official Zabbix
+installation instructions. It seems that your PHP timezone must be
+configured before you can start the zabbix server web interface.
+The current instructions tell the user to edit
+<strong>/etc/zabbix/apache.conf</strong> but the correct path of
+the file to edit is
+<strong>/etc/php/PHP_VERSION/apache2/php.ini.</strong> On Ubuntu
+18.04 the file to edit is
+<strong>/etc/php/7.2/apache2/php.ini</strong> . Apache needs to be
+restarted after editing this file.</p>
+<p><br></p>
+<p><font size="+2"><span class="ms-rteFontSize-4">Stopping the
+'Lack of free swap space' and 'Too many
+processes'&nbsp;warnings</span></font><br></p>
+<p>When logging into Zabbix for the first time you&nbsp;may be
+presented with a warning for 'Lack of free swap space' on the
+Zabbix server. This is because the 'Template OS Linux' template
+gets auto-assigned to the Zabbix server and this template checks
+for swap but it doesn't recognise virtual swap memory, as used by
+default&nbsp;with Proxmox containers.</p>
+<p>It often isn't necessary to have any swap on real or virtual
+machines when you have ~32 GB RAM, especially&nbsp;if the
+machine&nbsp;isn't&nbsp;heavily&nbsp;loaded so the easiest way to
+rid of this warning is to clone (Full Clone) the 'Template OS
+Linux' template to a new template called something like
+<span>'Template OS Linux No Swap' and then disable the 'Lack of
+free swap space' trigger on the cloned template.<br></span></p>
+<p><span>After doing so, remove&nbsp;<span>(Remove and Clean)
+'Template OS Linux' from the Zabbix server&nbsp;host and
+replace&nbsp;it with&nbsp;<span><span>'Template OS Linux No Swap'.
+I also disable the 'Too many processes&nbsp;on' trigger, which
+seems to be set too low for an average modern Linux machine and so
+is easily triggered.<br></span></span></span></span></p>
+<p><span><span><span><span><br></span></span></span></span></p>
+<p><span><span><span><span><font size="+2"><span class=
+"ms-rteFontSize-4">"Zabbix processes more than 75% busy"
+warnings</span></font><br></span></span></span></span></p>
+<div><span class="ms-rteFontSize-3">I initially installed Zabbix in
+a container on a very old server. I thought it would suffice to
+monitor a handful of machines but after several months the web UI
+became very sluggish and we frequently encountered&nbsp;these
+warnings:</span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div><span class="ms-rteFontSize-3"><strong>Zabbix history syncer
+processes more than 75% busy</strong></span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div><span class="ms-rteFontSize-3">and</span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div><span class="ms-rteFontSize-3"><strong>Zabbix housekeeper
+processes more than 75% busy</strong></span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div><span class="ms-rteFontSize-3">It seems the old&nbsp;HDs in
+our aging server couldn't keep up with the DB demands of Zabbix
+when using the default mysql/mariadb settings.</span><br>
+<span class="ms-rteFontSize-3"><span class="ms-rteFontSize-3">
+<meta http-equiv="content-type" content=
+"text/html; charset=windows-1252"><span class=
+"ms-rteFontSize-3">These&nbsp;errors&nbsp;were fixed by reducing
+the kernel's "swappiness" and changing the mysql server
+config.</span></span></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div><font size="+2"><span class="ms-rteFontSize-4">Reduce
+swappiness</span></font></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div><span class="ms-rteFontSize-3">Check your Zabbix servers
+swappiness by running:</span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div><span class="ms-rteFontSize-3">$ cat
+/proc/sys/vm/swappiness</span></div>
+</div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">If it's not zero (it defaults
+to 60 under Ubuntu), set it to zero:</span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div><span class="ms-rteFontSize-3"># sysctl
+vm.swappiness=0</span></div>
+</div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><font size="+2"><span class="ms-rteFontSize-4">Adjust mysql
+server settings</span></font></div>
+<div><span class="ms-rteFontSize-4"><br></span></div>
+<div><span class="ms-rteFontSize-4"><span class=
+"ms-rteFontSize-3">I added the following lines
+to&nbsp;<strong>/etc/mysql/mariadb.conf.d/</strong></span><span class="ms-rteFontSize-3"><strong>50-server.cnf</strong></span></span></div>
+<div><span class="ms-rteFontSize-4"><span class=
+"ms-rteFontSize-3"><strong><br></strong></span></span></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div>
+<div><span class=
+"ms-rteFontSize-3">innodb_flush_log_at_trx_commit=0</span></div>
+<div><span class=
+"ms-rteFontSize-3">innodb_buffer_pool_size=12G</span></div>
+<div><span class=
+"ms-rteFontSize-3">innodb_buffer_pool_instances=16</span></div>
+</div>
+</div>
+<div><span><span><span class="ms-rteFontSize-4"><span class=
+"ms-rteFontSize-3"><br></span></span></span></span></div>
+I'm not sure if the second and third lines are necessary, it's
+recommended you set the buffer pool size to about 75% of your
+RAM&nbsp;but adding&nbsp;<span style=
+"font-size: 17.3333px;"><strong>innodb_flush_log_at_trx_commit=0</strong>
+certainly made a big difference to the responsiveness of the Zabbix
+web UI after that line was added and the server rebooted and
+may&nbsp;be&nbsp;the only&nbsp;DB tweak&nbsp;you&nbsp;require
+for&nbsp;Zabbix. I got this tip <a href=
+"https://www.percona.com/blog/2014/11/14/optimizing-mysql-zabbix/">here</a>.</span>
+<div><span><span class="ms-rteFontSize-4"><span style=
+"font-size: 17.3333px;"><br></span></span></span>
+<p><span><span><span><span><br></span></span></span></span></p>
+<p><span class="ms-rteFontSize-4"><font size="+2">Additional Zabbix
+monitoring templates</font><br></span></p>
+<p>Zabbix includes a number of templates by default such as
+'Template OS Linux' which is useful for monitoring many common
+system metrics on Linux machines but a number of extra, third party
+templates are required to be installed and configured for more
+comprehensive monitoring. Zabbix includes a template for monitoring
+MySQL database servers but it requires configuring the parameters
+to monitor in the agent configuration if you want more than a
+simple ping to test its alive.&nbsp;</p>
+<p>Examples of things not covered by any of the&nbsp;standard
+templates
+are&nbsp;ZFS,&nbsp;RAID&nbsp;(both&nbsp;hardware&nbsp;RAID&nbsp;and
+Linux&nbsp;software MD RAID), Apache and Apt package update
+notifications. It seems Zabbix 4.0 has no issue using Zabbix 3.X
+templates. Pay close&nbsp;attention to the&nbsp;READMEs&nbsp;when
+setting up these&nbsp;additional templates!<br></p>
+<p><br></p>
+<p><a href="https://github.com/Cosium/zabbix_zfs-on-linux">ZFS</a>
+- Seems to require active monitoring be enabled on agents.<br></p>
+<p><a href=
+"https://github.com/radiorabe/rabe-zabbix/tree/master/app/MD-RAID">MD-RAID</a>
+- Linux software RAID. Uses active monitoring by default but I've
+only got it to work by switching it to use passive
+mode.<span><br></span></p>
+<p><span><a href="https://github.com/ps78674/zabbix-lsi">LSI / Dell
+PERC / MegaRAID</a> - Hardware RAID. Tested 'Template Server LSI
+RAID' w/ perccli</span><br></p>
+<p><a href=
+"https://github.com/v-zhuravlev/zbx_template_apache2">Apache
+httpd</a> - These Apache templates work without any external
+scripts, unlike most alternatives.<br></p>
+<p><a href=
+"https://github.com/MogiePete/zabbix-systemd-service-monitoring">systemd</a>
+-&nbsp; We use the systemd service monitoring template to check the
+php-fpm service(s) are running on web servers.<br></p>
+<p><a href=
+"http://yallalabs.com/linux/how-to-monitor-apt-regular-and-security-updates-on-ubuntu-using-zabbix/">
+Apt</a> - Check for updated Ubuntu / Debian packages. Not tested
+yet.<br></p>
+<p><a href=
+"https://github.com/bloodia/Zabbix-Template-iptables">iptables</a>
+- Checks if the iptables firewall is running and the number of
+connections to the server.</p>
+<p><a href=
+"https://github.com/hermanekt/zabbix-fail2ban-discovery-">fail2ban</a>
+- Checks f2b is running and monitors the number of banned IPs.</p>
+</div>
+</body>
+</html>
