@@ -22,3 +22,5 @@
 ## Zabbix
 
 [Configuring a Zabbix server](https://htmlpreview.github.io/?https://github.com/danboid/dox/blob/main/zabbix/zabbix_server.html)
+
+[Configuring a Zabbix client](https://htmlpreview.github.io/?https://github.com/danboid/dox/blob/main/zabbix/zabbix_agent.html)

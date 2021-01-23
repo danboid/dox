@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html; charset=utf-8">
+<title>Zabbix client config</title>
+</head>
+<body>
+<div><font size="+3"><span class="ms-rteFontSize-5">Installing new
+Zabbix agents<br></span></font></div>
+<div><br></div>
+<div><span class="ms-rteFontSize-3">Every Linux (or Windows)
+machine being monitored by Zabbix needs to have the Zabbix agent
+installed and configured so that it can collect data such as CPU,
+memory, disk and network interface usage to send it to the Zabbix
+server. This guide covers the process of installing zabbix-agent
+onto a Linux machine, adding it to the Zabbix server and assigning
+some monitoring&nbsp;templates.</span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div><br>
+<br class="ms-rteFontSize-3"></div>
+<div><span class="ms-rteFontSize-3"><font size="+2"><span class=
+"ms-rteFontSize-4">Add the zabbix repo and install
+zabbix-agent</span></font><br></span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div><span class="ms-rteFontSize-3">We are currently running Zabbix
+4.0 because 4.0 is the latest LTS zabbix release but most of our
+Linux servers are running Ubuntu 18.04 which has Zabbix 3.x in its
+repository so the agent has to be installed from <a href=
+"https://repo.zabbix.com/zabbix/4.0/">the Zabbix repo</a>. Before
+you download and install the package to add the Zabbix repository
+to your system, you will need to know the code name of the Ubuntu
+release you want to install the agent on. For example, the code
+name of Ubuntu 18.04 is bionic so for 18.04 you would need to
+download and install <a href=
+"https://repo.zabbix.com/zabbix/4.0/ubuntu/pool/main/z/zabbix-release/zabbix-release_4.0-3%2Bbionic_all.deb">
+zabbix-release_4.0-3+bionic_all.deb</a> , or whatever the latest
+version of that package is.</span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div><span class="ms-rteFontSize-3">Once you have found the correct
+version of the zabbix-release package for your machine, right-click
+the link to its file and choose <strong>Copy link
+location</strong>. This allows you to easily download the file to
+the target machine by pasting the link after typing <strong>wget
+&lt;paste link&gt;</strong> in a SSH session.</span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div><span class="ms-rteFontSize-3">The commands to install the
+agent under Ubuntu would be something like this:</span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div><span class="ms-rteFontSize-3">$ wget
+https://repo.zabbix.com/zabbix/4.0/ubuntu/pool/main/z/zabbix-release/zabbix-release_4.0-3%2Bbionic_all.deb</span></div>
+<div><span class="ms-rteFontSize-3">$ sudo dpkg -i
+zabbix-release_4.0-3%2Bbionic_all.deb</span></div>
+<div><span class="ms-rteFontSize-3">$ sudo apt update</span></div>
+<div><span class="ms-rteFontSize-3">$ sudo apt install
+zabbix-agent</span></div>
+</div>
+<div><br>
+<br>
+<br class="ms-rteFontSize-3"></div>
+<div><font size="+2"><span class="ms-rteFontSize-4">Configure the
+Zabbix agent</span></font></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div><span class="ms-rteFontSize-3">Before we start the zabbix
+agent and configure it to load on boot, we need to edit its config
+file to tell it where to find our Zabbix server. Edit
+<strong>/etc/zabbix/zabbix_agentd.conf</strong> and find the lines
+for configuring <strong>Server=</strong> and
+<strong>ServerActive=</strong> and set them both to
+<strong>zeus.cs.salford.ac.uk</strong> . You only need to configure
+<strong>ServerActive</strong> if any active checks are being run.
+In such cases you also need to
+uncomment&nbsp;<strong>RefreshActiveChecks</strong>.&nbsp;Also
+configure <strong>Hostname=</strong> so that it matches the
+hostname of the machine being monitored then save the
+file.</span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div><span class="ms-rteFontSize-3">Next we'll start the zabbix
+agent, check its running and start it at boot:</span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div><span class="ms-rteFontSize-3">$ sudo systemctl start
+zabbix-agent</span></div>
+<div><span class="ms-rteFontSize-3">$ sudo systemctl status
+zabbix-agent</span></div>
+<div><span class="ms-rteFontSize-3">$ sudo systemctl enable
+zabbix-agent</span></div>
+</div>
+<div><br class="ms-rteFontSize-3"></div>
+<div><font size="+2"><span class="ms-rteFontSize-4"><br>
+<br>
+Open required ports</span></font></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div><span class="ms-rteFontSize-3">If this machine has a software
+firewall or if its running in the cloud, two ports are required to
+be opened to allow the agent to contact the zabbix server:
+<strong>10050</strong> incoming and <strong>10051</strong>
+outgoing, both TCP. It shouldn't be necessary to open any ports if
+the machine is on the LAN and isn't running a software
+firewall.</span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div><br>
+<br class="ms-rteFontSize-3"></div>
+<div><font size="+2"><span class="ms-rteFontSize-4">Add host to
+Zabbix</span></font></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div><span class="ms-rteFontSize-3">Log into Zabbix and go to
+<strong>Configuration -&gt; Hosts</strong> then click 'Create Host'
+in the top right. On the Host configuration page you have to input
+the&nbsp;Host&nbsp;name then either the IP address of the machine
+to be added. Monitoring machines via hostname (instead of IP)
+caused the DNS servers to be overloaded with requests. Click
+'Select' to the right of the Groups entry field and select 'Linux
+servers' for the group.</span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div><br>
+<br class="ms-rteFontSize-3"></div>
+<div><font size="+2"><span class="ms-rteFontSize-4">Assign
+monitoring template(s) to host</span></font></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div><span class="ms-rteFontSize-3">Zabbix doesn't monitor anything
+on its clients unless they have been linked to templates to tell
+Zabbix what to monitor and log. Go to <strong>Configuration -&gt;
+Hosts</strong> and look for the host we have just added. If the
+server can contact the agent then the ZBX icon to its right should
+be green, if it's red then you may need to open some ports or check
+the hosts network settings.&nbsp;</span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div><span class="ms-rteFontSize-3">Templates can be linked to
+hosts by clicking on the name of the host then switching to the
+Templates tab. Search for the required template to link to - all of
+our Linux servers link to at least '<strong>Template OS Linux No
+Swap</strong>', a clone of the default&nbsp;<strong>Template OS
+Linux</strong> with the check for a swap partition disabled. Once
+you have selected the desired template, click 'Add'. Do this for
+all required Templates and then click 'Update'. Now if you return
+to the hosts page you should see the selected templates listed next
+to the host.</span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">Examples of Linux machines that
+would require more than just the <strong>Template OS Linux No
+Swap</strong> template would be if it is using ZFS (add the
+<strong>ZFS on Linux</strong> template plus follow the client
+config&nbsp;instructions in the templates github README) , if it is
+using software RAID (add&nbsp;<strong>Template App MD-RAID
+active</strong>), hardware RAID ( add <strong>Template Server LSI
+RAID</strong> if that is the correct RAID controller,&nbsp;see
+template README) or if you want to monitor a specific application
+such as apache (add&nbsp;<strong>T</strong><strong>emplate App
+Apache2 Zabbix agent</strong>) or MySQL. See the <a href=
+"/sites/sc02/TS018/CSSE%20wiki/ZABBIX.aspx">Additional monitoring
+templates section here</a>.</span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div><br>
+<br class="ms-rteFontSize-3"></div>
+<div><font size="+2"><span class="ms-rteFontSize-4">Checking
+specific data is being monitored</span></font></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div><span class="ms-rteFontSize-3">Checking the ZBX icon is green
+for a given host on the Zabbix server Hosts page is the first thing
+to check. To ensure specific data is being monitored for a host go
+to <strong>Monitoring -&gt; Latest Data</strong>, search for the
+host in question and then click 'Apply' to see what is currently
+being monitored for that host.</span></div>
+<div><br>
+<br></div>
+<p><font size="+2"><span class="ms-rteFontSize-4">Using the MD-RAID
+template</span></font><br></p>
+<p><span class="ms-rteFontSize-3">If you want to monitor the status
+of any Linux&nbsp;software RAID arrays, you must
+copy&nbsp;<strong>rabe.md-raid.conf</strong>
+into&nbsp;<strong>/etc/zabbix/zabbix_agentd.d</strong> on the
+machine being monitored (as <a href=
+"https://github.com/radiorabe/rabe-zabbix/tree/master/app/MD-RAID">documented
+here</a>) and then restart the zabbix agent&nbsp;but you may
+also&nbsp;need to modify some of the template settings to use
+passive instead of active monitoring like so:</span></p>
+<p><span class="ms-rteFontSize-3">After adding the MD-RAID template
+to your host, under the Zabbix web interface go to
+<strong>Configuration -&gt; Hosts</strong> then click
+<strong>Discovery</strong> next to the relevant host. Now click
+<strong>Item prototypes</strong> next to the <strong>RAID device
+(MD) discovery</strong> rule then click on each of the 5 item
+prototypes and change the Type of all 5 Raid device item prototypes
+from <strong>Zabbix agent (active)</strong> to <strong>Zabbix
+agent</strong>.<br></span></p>
+<p><br></p>
+<p><br></p>
+</body>
+</html>
