@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html; charset=utf-8">
+<title>Landscape and unattended-upgrades</title>
+</head>
+<body>
+<p><font size="+3"><span class=
+"ms-rteFontSize-5">Landscape</span></font><br></p>
+<p><span class="ms-rteFontSize-3">Landscape is a system management
+tool designed to let you easily manage multiple Ubuntu systems.
+It's main use is for automating system updates via its profiles
+feature. This page documents useful tips&nbsp;when&nbsp;setting up
+the on-premise version, referred to online&nbsp;as
+OPL.<br></span></p>
+<p><br></p>
+<p><span class="ms-rteFontSize-3"><font size="+2"><span class=
+"ms-rteFontSize-4">Configure Let's Encrypt SSL
+certs</span></font><br></span></p>
+<p><span class="ms-rteFontSize-3">After installing
+Landscape-quickstart as per <a href=
+"https://docs.ubuntu.com/landscape/en/landscape-install-quickstart">
+the official installation&nbsp;guide</a>,&nbsp;you will
+likely&nbsp;get&nbsp;a warning about it being insecure if&nbsp;you
+try to login immediately afterwards&nbsp;because it does not
+install SSL certs. The following commands will install secure SSL
+certs:<br></span></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div><span class="ms-rteFontSize-3">sudo add-apt-repository
+ppa:certbot/certbot</span></div>
+<div><span class="ms-rteFontSize-3">sudo apt-get
+update</span></div>
+<div><span class="ms-rteFontSize-3">sudo apt-get install
+python-certbot-apache</span></div>
+<div><span class="ms-rteFontSize-3">sudo certbot --apache
+certonly</span></div>
+<div><span class="ms-rteFontSize-3">sudo ln -s
+/etc/letsencrypt/live/unicornfoundation.com/fullchain.pem
+/etc/ssl/certs/landscape_server.pem</span></div>
+<div><span class="ms-rteFontSize-3">sudo ln -s
+/etc/letsencrypt/live/</span><span class=
+"ms-rteFontSize-3"><span class=
+"ms-rteFontSize-3">unicornfoundation.com</span>/privkey.pem
+/etc/ssl/private/landscape_server.key</span></div>
+<div><span class="ms-rteFontSize-3">sudo dpkg-reconfigure
+landscape-server-quickstart<br></span></div>
+</div>
+<p><span class="ms-rteFontSize-3">You should now be able to login
+to Landscape without any security warnings.&nbsp;To make
+the&nbsp;certs auto-renew, add a root cron job such
+as:</span><br></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div><span class="ms-rteFontSize-3">0 0 * * * /usr/bin/certbot
+renew</span><br></div>
+</div>
+<p><span class="ms-rteFontSize-3"><br></span></p>
+<p><font size="+2"><span class="ms-rteFontSize-4">Fix "USN update
+cron script..." error</span></font></p>
+<p><span class="ms-rteFontSize-3">I have <a href=
+"https://bugs.launchpad.net/landscape/+bug/1861684">reported this
+as a bug</a> (apparently its not) so hopefully this won't be
+necessary by the time you read this but if you get the
+error:</span></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3"><span style=
+"font-size: 17.3333px;">USN update cron script is not running, USN
+information may be out of&nbsp;</span><span style=
+"font-size: 17.3333px;">date</span><br></span></div>
+<p><span class="ms-rteFontSize-3">When you
+navigate&nbsp;to&nbsp;<strong>Computers -&gt; Packages</strong> in
+the OPL web UI then you probably just need to&nbsp;create a
+symbolic link from <strong>/usr/bin/landscape-quickstart</strong>
+to <strong>/usr/bin/landscape</strong>. This is
+because&nbsp;<strong>/etc/cron.d/landscape-server</strong> is
+trying&nbsp;to execute cron jobs&nbsp;using
+`<strong>landscape</strong>` but landscape-quickstart uses
+`<strong>landscape-quickstart</strong>` instead. That fixed it for
+me, but it shouldn't be required apparently.</span><br></p>
+<p><span class="ms-rteFontSize-3"><br>
+<br>
+<font size="+2"><span class="ms-rteFontSize-4">Registering
+clients</span></font></span></p>
+<p><span class="ms-rteFontSize-3">The <a href=
+"https://docs.ubuntu.com/landscape/en/landscape-install-quickstart">
+online documentation</a> says to copy the SSL cert
+from&nbsp;<strong>/etc/ssl/certs/landscape_server_ca.crt</strong>
+onto each client but after configuring certbot (Let's Encrypt) you
+have to
+copy&nbsp;<strong>/etc/ssl/certs/landscape_server.pem</strong>
+(or&nbsp;<strong>/etc/letsencrypt/live/unicornfoundation.com/fullchain.pem</strong>
+)
+to&nbsp;<strong>/etc/landscape/server.pem</strong>&nbsp;on&nbsp;each
+client&nbsp;instead. Ports 80 and 443 must be open between the
+client and server.<br></span></p>
+<p><span class="ms-rteFontSize-3">Note that you have
+to&nbsp;re-approve machines into their access group in the
+Landscape web UI&nbsp;when you have restored a machine from backups
+or rolled back a container. I usually approve the new version of
+the client, delete the old client then rename the new&nbsp;one so
+it doesn't end in '(clone)'.</span><br></p>
+<p><span class="ms-rteFontSize-3"><br>
+<br></span></p>
+<p><span class="ms-rteFontSize-3"><font size="+3"><span class=
+"ms-rteFontSize-4">unattended-upgrades</span></font><br></span></p>
+<p><span class="ms-rteFontSize-3">It is possible to install the
+Ubuntu Landscape client packages under Debian and register it to a
+Landscape server but it cannot be used to update packages for
+Debian machines. An alternate solution for Debian, which also works
+for Ubuntu, to automate updates is to use
+<strong>unattended-upgrades</strong>. It is a bit trickier to
+configure than Landscape but it has the advantage of supporting
+automated reboots when they are required, which Landscape <a href=
+"https://bugs.launchpad.net/landscape/+bug/1759191">doesn't support
+at the time of writing</a>.</span></p>
+<p><span class=
+"ms-rteFontSize-3"><strong>unattended-upgrades</strong> is
+installed by default under recent versions of regular Debian (since
+v9) but it isn't installed by default under Proxmox. The <a href=
+"https://wiki.debian.org/UnattendedUpgrades">Debian wiki page</a>
+explains almost everything you'd need to know about configuring
+unattended-upgrades bar one key point - how to configure the
+origins pattern section. Comment out or delete all of the existing
+origins patterns and add:</span></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div><span class="ms-rteFontSize-3">"o=*";</span></div>
+</div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">To
+the&nbsp;<strong>Unattended-Upgrade::Origins-Pattern</strong>&nbsp;section
+of&nbsp;<strong>/etc/apt/apt.conf.d/50unattended-upgrades</strong>
+to automatically update packages from all repos
+(origins).</span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">You can test the validity of
+the&nbsp;<b>unattended-upgrades</b> config file by
+running:</span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div><span class="ms-rteFontSize-3"># unattended-upgrades -d
+--dry-run<br></span></div>
+</div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class=
+"ms-rteFontSize-3">The&nbsp;<strong>apt-daily.timer</strong>
+and&nbsp;<strong>apt-daily-upgrade.timer</strong> systemd timers
+are responsible for&nbsp;running&nbsp;<b>unattended-upgrades</b>.
+To see when they are configured to run next and when they were last
+run, run:</span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div><span class="ms-rteFontSize-3">$&nbsp;systemctl list-timers
+--all</span></div>
+</div>
+<div><br></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">Here is an example <span style=
+"font-size: 17.3333px;"><strong>/etc/apt/apt.conf.d/50unattended-upgrades</strong>:<br>
+</span></span></div>
+<div><span class="ms-rteFontSize-3"><span style=
+"font-size: 17.3333px;"><br></span></span></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div>// Unattended-Upgrade::Origins-Pattern controls which packages
+are<br></div>
+<div>
+<div>// upgraded.</div>
+<div>//</div>
+<div>// Lines below have the format format is
+"keyword=value,...".&nbsp; A</div>
+<div>// package will be upgraded only if the values in its metadata
+match</div>
+<div>// all the supplied keywords in a line.&nbsp; (In other words,
+omitted</div>
+<div>// keywords are wild cards.) The keywords originate from the
+Release</div>
+<div>// file, but several aliases are accepted.&nbsp; The accepted
+keywords are:</div>
+<div>//&nbsp; &nbsp;a,archive,suite (eg, "stable")</div>
+<div>//&nbsp; &nbsp;c,component&nbsp; &nbsp; &nbsp;(eg, "main",
+"contrib", "non-free")</div>
+<div>//&nbsp; &nbsp;l,label&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;(eg,
+"Debian", "Debian-Security")</div>
+<div>//&nbsp; &nbsp;o,origin&nbsp; &nbsp; &nbsp; &nbsp; (eg,
+"Debian", "Unofficial Multimedia Packages")</div>
+<div>//&nbsp; &nbsp;n,codename&nbsp; &nbsp; &nbsp; (eg, "jessie",
+"jessie-updates")</div>
+<div>//&nbsp; &nbsp; &nbsp;site&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;
+(eg, "http.debian.net")</div>
+<div>// The available values on the system are printed by the
+command</div>
+<div>// "apt-cache policy", and can be debugged by running</div>
+<div>// "unattended-upgrades -d" and looking at the log file.</div>
+<div>//</div>
+<div>// Within lines unattended-upgrades allows 2 macros whose
+values are</div>
+<div>// derived from /etc/debian_version:</div>
+<div>//&nbsp; &nbsp;${distro_id}&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;
+&nbsp; Installed origin.</div>
+<div>//&nbsp; &nbsp;${distro_codename}&nbsp; &nbsp; &nbsp;
+Installed codename (eg, "jessie")</div>
+<div>Unattended-Upgrade::Origins-Pattern {</div>
+<div>&nbsp; &nbsp; &nbsp; &nbsp; // Codename based matching:</div>
+<div>&nbsp; &nbsp; &nbsp; &nbsp; // This will follow the migration
+of a release through different</div>
+<div>&nbsp; &nbsp; &nbsp; &nbsp; // archives (e.g. from testing to
+stable and later oldstable).</div>
+<div>//&nbsp; &nbsp; &nbsp; "o=Debian,n=jessie";</div>
+<div>//&nbsp; &nbsp; &nbsp; "o=Debian,n=jessie-updates";</div>
+<div>//&nbsp; &nbsp; &nbsp;
+"o=Debian,n=jessie-proposed-updates";</div>
+<div>//&nbsp; &nbsp; &nbsp;
+"o=Debian,n=jessie,l=Debian-Security";</div>
+<div><br></div>
+<div>&nbsp; &nbsp; &nbsp; &nbsp; // Archive or Suite based
+matching:</div>
+<div>&nbsp; &nbsp; &nbsp; &nbsp; // Note that this will silently
+match a different release after</div>
+<div>&nbsp; &nbsp; &nbsp; &nbsp; // migration to the specified
+archive (e.g. testing becomes the</div>
+<div>&nbsp; &nbsp; &nbsp; &nbsp; // new stable).<br></div>
+<div>&nbsp; &nbsp; &nbsp; &nbsp;&nbsp;"o=*";<br></div>
+<div>&nbsp; &nbsp; &nbsp;
+&nbsp;&nbsp;//"o=Debian,a=${distro_codename}" ;</div>
+<div>&nbsp; &nbsp; &nbsp; &nbsp;
+//"o=Debian,a=${distro_codename}-updates";</div>
+<div>&nbsp; &nbsp; &nbsp; &nbsp;
+//"o=Debian,a=proposed-updates";</div>
+<div>&nbsp; &nbsp; &nbsp; &nbsp;
+//"origin=Debian,codename=${distro_codename},label=Debian-Security";</div>
+<div>//"o=Proxmox,a=stable";
+<div>//"o=Zabbix,a=stretch";<br></div>
+</div>
+<div>};</div>
+<div><br></div>
+<div>// List of packages to not update (regexp are supported)</div>
+<div>Unattended-Upgrade::Package-Blacklist {</div>
+<div>// "vim";</div>
+<div>// "libc6";</div>
+<div>// "libc6-dev";</div>
+<div>// "libc6-i686";</div>
+<div>};</div>
+<div><br></div>
+<div>// This option allows you to control if on a unclean dpkg
+exit</div>
+<div>// unattended-upgrades will automatically run&nbsp;</div>
+<div>//&nbsp; &nbsp;dpkg --force-confold --configure -a</div>
+<div>// The default is true, to ensure updates keep getting
+installed</div>
+<div>//Unattended-Upgrade::AutoFixInterruptedDpkg "false";</div>
+<div><br></div>
+<div>// Split the upgrade into the smallest possible chunks so
+that</div>
+<div>// they can be interrupted with SIGUSR1. This makes the
+upgrade</div>
+<div>// a bit slower but it has the benefit that shutdown while a
+upgrade</div>
+<div>// is running is possible (with a small delay)</div>
+<div>//Unattended-Upgrade::MinimalSteps "true";</div>
+<div><br></div>
+<div>// Install all unattended-upgrades when the machine is shuting
+down</div>
+<div>// instead of doing it in the background while the machine is
+running</div>
+<div>// This will (obviously) make shutdown slower</div>
+<div>//Unattended-Upgrade::InstallOnShutdown "true";</div>
+<div><br></div>
+<div>// Send email to this address for problems or packages
+upgrades</div>
+<div>// If empty or unset then no email is sent, make sure that
+you</div>
+<div>// have a working mail setup on your system. A package that
+provides</div>
+<div>// 'mailx' must be installed. E.g. "user@example.com"</div>
+<div>Unattended-Upgrade::Mail "root";</div>
+<div><br></div>
+<div>// Set this value to "true" to get emails only on errors.
+Default</div>
+<div>// is to always send a mail if Unattended-Upgrade::Mail is
+set</div>
+<div>Unattended-Upgrade::MailOnlyOnError "true";</div>
+<div><br></div>
+<div>// Do automatic removal of new unused dependencies after the
+upgrade</div>
+<div>// (equivalent to apt-get autoremove)</div>
+<div>Unattended-Upgrade::Remove-Unused-Dependencies "true";</div>
+<div><br></div>
+<div>// Automatically reboot *WITHOUT CONFIRMATION* if</div>
+<div>//&nbsp; the file /var/run/reboot-required is found after the
+upgrade&nbsp;</div>
+<div>Unattended-Upgrade::Automatic-Reboot "true";</div>
+<div><br></div>
+<div>// Automatically reboot even if there are users currently
+logged in.</div>
+<div>//Unattended-Upgrade::Automatic-Reboot-WithUsers "true";</div>
+<div><br></div>
+<div>// If automatic reboot is enabled and needed, reboot at the
+specific</div>
+<div>// time instead of immediately</div>
+<div>//&nbsp; Default: "now"</div>
+<div>Unattended-Upgrade::Automatic-Reboot-Time "04:00";</div>
+<div><br></div>
+<div>// Use apt bandwidth limit feature, this example limits the
+download</div>
+<div>// speed to 70kb/sec</div>
+<div>//Acquire::http::Dl-Limit "70";</div>
+<div><br></div>
+<div>// Enable logging to syslog. Default is False</div>
+<div>// Unattended-Upgrade::SyslogEnable "false";</div>
+<div><br></div>
+<div>// Specify syslog facility. Default is daemon</div>
+<div>// Unattended-Upgrade::SyslogFacility "daemon";<br></div>
+</div>
+</div>
+<br>
+</body>
+</html>
