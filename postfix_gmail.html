@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html; charset=utf-8">
+<title>Sending email with postfix and gmail</title>
+</head>
+<body>
+<p><font size="+3">Sending email with postfix and
+gmail</font><br></p>
+<p>This page&nbsp;describes&nbsp;how to&nbsp;configure postfix to
+send email via&nbsp;gmail. Whilst there are more lightweight,
+simpler MTAs (Mail Transport Agents) such as ssmtp, postfix remains
+popular and in some cases is required, as is the case with
+virtualmin under Ubuntu.</p>
+<p>First, configure your gmail security settings to disable 2FA and
+<a href="https://support.google.com/accounts/answer/6010255">allow
+less secure app access</a>. You will also need to&nbsp;create an
+outbound TCP security rule to&nbsp;allow port 587 if running in a
+VM or using a firewall.<br></p>
+<p>The <strong>mail</strong> command line tool used to send emails
+from the command line / shell scripts is contained with the
+<b>mailutils</b> package.</p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+sudo apt update &amp;& apt install postfix mailutils</div>
+<p>Create the file to store the password:</p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+sudo vim /etc/postfix/sasl_passwd</div>
+<p>That file should contain one line like:</p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+[smtp.gmail.com]:587&nbsp;&nbsp; username@gmail.com:password</div>
+<br>
+<br>
+Replace <strong>username@gmail.com</strong> with the gmail address
+to be used and replace <b>password</b> with the password for the
+account, then run the following so that only root can access the
+password file:<br>
+<br>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+sudo chmod 600 /etc/postfix/sasl_passwd</div>
+<br>
+<br>
+Finally (for the password file), we need to hash it:<br>
+<br>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+sudo postmap /etc/postfix/sasl_passwd</div>
+<br>
+<br>
+Now edit the main postfix config file,
+<strong>/etc/postfix/main.cf</strong> to look like this, changing
+<strong>myhostname</strong> as required:<br>
+<br>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+myhostname = hostname.csesalford.com<br>
+relayhost = [smtp.gmail.com]:587<br>
+smtp_use_tls = yes<br>
+smtp_sasl_auth_enable = yes<br>
+smtp_sasl_security_options =<br>
+smtp_sasl_password_maps = hash:/etc/postfix/sasl_passwd<br>
+smtp_tls_CAfile = /etc/ssl/certs/ca-certificates.crt<br>
+virtual_alias_maps = hash:/etc/postfix/virtual<br>
+mailbox_command = /usr/bin/procmail</div>
+<br>
+<br>
+After saving that you can restart postfix and the sending of emails
+should work:<br>
+<br>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+sudo systemctl restart postfix</div>
+<br>
+<br>
+You can test the sending of emails with a command like this:<br>
+<br>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+echo "This is a test" | mail -s "Test subject"
+recipient@domain.com<br></div>
+<div><br></div>
+<br>
+</body>
+</html>

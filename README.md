@@ -26,3 +26,8 @@
 [Configuring a Zabbix client](https://htmlpreview.github.io/?https://github.com/danboid/dox/blob/main/zabbix/zabbix_agent.html)
 
 [Landscape and unattended-upgrades](https://htmlpreview.github.io/?https://github.com/danboid/dox/blob/main/landscape.html)
+
+
+## Misc
+
+[Sending email with postfix and gmail](https://htmlpreview.github.io/?https://github.com/danboid/dox/blob/main/postfix_gmail.html)
