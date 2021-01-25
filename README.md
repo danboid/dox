@@ -31,3 +31,5 @@
 ## Misc
 
 [Sending email with postfix and gmail](https://htmlpreview.github.io/?https://github.com/danboid/dox/blob/main/postfix_gmail.html)
+
+[Configuring a standalone FOG VM](https://htmlpreview.github.io/?https://github.com/danboid/dox/blob/main/FOG.html)

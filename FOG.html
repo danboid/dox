@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html; charset=utf-8">
+<title>Configuring a standalone FOG VM</title>
+</head>
+<body>
+<p><span class="ms-rteFontSize-3"><font size="+3"><span class=
+"ms-rteFontSize-5">Configuring a standalone FOG VM under Ubuntu
+20.04</span></font><br>
+<br>
+<a href="https://fogproject.org/"><strong>FOG</strong></a> (Free
+Open Ghost) makes it quick and easy to deploy Windows, Linux or
+macOS images over a wired network using <strong>iPXE</strong>,
+<strong>partclone</strong>, <strong>apache</strong> and other open
+source software under the hood. <span><span class=
+"ms-rteFontSize-3">The aim of this guide&nbsp;is to&nbsp;set up a
+<strong>FOG</strong> server running in a&nbsp;<span><span class=
+"ms-rteFontSize-3"><span><span class="ms-rteFontSize-3">Ubuntu
+Server</span></span></span></span> 20.04 VM hosted by
+<strong>qemu</strong> running&nbsp;on Ubuntu 20.04. I use
+<strong>virt-manager</strong> to simplify the process of creating
+and managing the VM but you should also be able to run FOG in a LXD
+or LXC container.<br></span></span></span></p>
+<p><span class="ms-rteFontSize-3"><span><span class=
+"ms-rteFontSize-3">This server will be running its own DHCP and DNS
+servers so that all you will need is your FOG VM, a switch and
+some&nbsp;ethernet cables to image machines</span></span>. FOG and
+its required services&nbsp;(like DHCP and DNS servers)
+are&nbsp;things I don't usually want to be running on&nbsp;my
+laptop or workstation which is why it's useful to have FOG running
+inside of a VM so you can quickly fire it up as and when it's
+needed.<br></span></p>
+<p><span class="ms-rteFontSize-3"><br></span></p>
+<p><span class="ms-rteFontSize-3"><font size="+2"><span class=
+"ms-rteFontSize-4">User groups for
+virt-manager</span></font><br></span></p>
+<p><span class="ms-rteFontSize-3">If you want to&nbsp;run
+<strong>virt-manager</strong> as a normal user, make sure your user
+is in both the <strong>kvm</strong> and <strong>libvirt</strong>
+groups. Remember you need to log out and back in after adding your
+user to a group before it takes effect.</span></p>
+<p><br></p>
+<p><br></p>
+<p><font size="+2"><span class="ms-rteFontSize-4">Create bridge
+interface on host machine</span></font><br></p>
+<p><span class="ms-rteFontSize-3">When you install
+<strong>virt-manager</strong> a <strong>virbr0</strong> network
+bridge is created but this doesn't work to host a FOG server.
+Instead we need to create a bridge interface, <strong>br0</strong>,
+by editing
+<strong>/etc/netplan/01-network-manager-all.yaml</strong> to look
+like this:</span></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3">network:</span><br class=
+"ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">&nbsp; version: 2</span><br class=
+"ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">&nbsp; renderer:
+networkd</span><br class="ms-rteFontSize-3">
+<br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">&nbsp; ethernets:</span><br class=
+"ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">&nbsp;&nbsp;&nbsp;
+enp0s31f6:</span><br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+dhcp4: false</span><br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+dhcp6: false</span><br class="ms-rteFontSize-3">
+<br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">&nbsp; bridges:</span><br class=
+"ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">&nbsp;&nbsp;&nbsp;
+br0:</span><br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+interfaces: [enp0s31f6]</span><br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+addresses: [192.168.0.33/24]</span><br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+gateway4: 192.168.0.1</span><br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; mtu:
+1500</span><br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+nameservers:</span><br class="ms-rteFontSize-3">
+<span class=
+"ms-rteFontSize-3">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+addresses: [1.1.1.1]</span><br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+parameters:</span><br class="ms-rteFontSize-3">
+<span class=
+"ms-rteFontSize-3">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; stp:
+true</span><br class="ms-rteFontSize-3">
+<span class=
+"ms-rteFontSize-3">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+forward-delay: 4</span><br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+dhcp4: no</span><br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+dhcp6: no</span><br></div>
+<div><br></div>
+<div><span class="ms-rteFontSize-3">Make sure you at least modify
+<strong>enp0s31f6</strong> above to match the wired interface name
+on your host machine - run <strong>ip l</strong> to list&nbsp;your
+network interfaces. You will need to reboot for the new network
+config to take effect.<br></span></div>
+<br>
+<p><span class="ms-rteFontSize-3">Note that using this netplan
+config will switch your Ubuntu box from using NetworkManager to
+using networkd, which is part of systemd. Whilst this will get FOG
+working, it also has the effect of breaking the network applets
+used by most Linux desktops because they nearly all use NM behind
+the scenes.<br></span></p>
+<p><span class="ms-rteFontSize-3">It is possible to <a href=
+"https://netplan.io/examples/#connecting-to-a-wpa-personal-wireless-network">
+configure netplan to connect to wifi</a> when using systemd but its
+not as simple as when using the&nbsp;NM applet.&nbsp;It&nbsp;is
+also possible to connect
+to&nbsp;wifi&nbsp;using&nbsp;<strong>wpasupplicant</strong>&nbsp;and&nbsp;<strong>wpa_gui</strong>
+whilst using networkd but I have not tested those with networkd
+yet. I'll only be using the&nbsp;above networkd bridge&nbsp;config
+on my laptop when using FOG and use default Ubuntu NM config the
+rest of the time for&nbsp;easier wifi access.</span><br></p>
+<p><br></p>
+<p><font size="+2"><span class="ms-rteFontSize-4">Create a FOG
+VM</span></font><br></p>
+<p><span class="ms-rteFontSize-3">Download the <a href=
+"https://ubuntu.com/download/server">Ubuntu Server 20.04 install
+image</a>. Ubuntu 20.04 has&nbsp;the advantage&nbsp;over Debian 10
+or RHEL 8&nbsp;in
+that&nbsp;its&nbsp;kernel&nbsp;and&nbsp;qemu&nbsp;packages&nbsp;are&nbsp;recent&nbsp;enough
+to enable you to use <a href=
+"https://libvirt.org/kbase/virtiofs.html">Virtio-FS to share the
+hosts disk with the VM</a> if your host supports NUMA.
+<span><span class="ms-rteFontSize-3">It is still possible to use
+Virtio-FS without NUMA but that requires qemu 5.x and Ubuntu 20.04
+ships qemu 4.2.</span></span><br>
+<br>
+When creating the FOG VM in <strong>virt-manager</strong>, I
+assigned it 4 GB RAM and 4 VCPUs. You could get away with as little
+as 512 MB RAM, 1 VCPU and a 4 GB disk for your FOG VM and it should
+still run, if you don't install any other software and you have the
+<strong>/images</strong> directory hosted
+elsewhere&nbsp;but&nbsp;generally&nbsp;you will&nbsp;want to make
+the&nbsp;VM disk&nbsp;as&nbsp;large
+as&nbsp;possible.&nbsp;You&nbsp;can easily use&nbsp;200
+GB&nbsp;imaging&nbsp;a modern&nbsp;Windows&nbsp;10 box with a few
+big apps installed. On the last step of creating a new VM in
+<strong>virt-manager</strong>, for the Network selection I chose
+the option "Bridge br0: Host device enp0s31f6".<br>
+<br>
+I find it easier to configure a static IP using the Ubuntu server
+installer so choose the Manual network configuration. For your FOG
+servers subnet you will likely want to use something like
+<strong>192.168.0.0/24</strong>. I used
+<strong>192.168.0.44</strong> for the address,
+<strong>1.1.1.1</strong> for the nameserver and my gateway is
+<strong>192.168.0.1</strong>. If you skipped the manual network
+config screen of the Ubuntu Server installer, you can alternately
+edit <strong>/etc/netplan/00-installer-config.yaml</strong> to look
+like this:<br>
+<br></span></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3">network:</span><br class=
+"ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">&nbsp; ethernets:</span><br class=
+"ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">&nbsp;&nbsp;&nbsp;
+enp1s0:</span><br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+addresses:</span><br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; -
+192.168.0.44/24</span><br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+gateway4: 192.168.0.1</span><br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+nameservers:</span><br class="ms-rteFontSize-3">
+<span class=
+"ms-rteFontSize-3">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+addresses:</span><br class="ms-rteFontSize-3">
+<span class=
+"ms-rteFontSize-3">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; -
+1.1.1.1</span><br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">&nbsp; version: 2</span><br></div>
+<br>
+<span class="ms-rteFontSize-3">I used the Ubuntu server guided disk
+defaults, using the whole disk. It's debatable how much use LVM is
+when used in VMs, its much easier to resize disks without it but
+its the default in Ubuntu server.</span><br class=
+"ms-rteFontSize-3">
+<br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">On the Ubuntu server Profile Setup
+page, enter</span> <strong class=
+"ms-rteFontSize-3">fog-server</strong> <span class=
+"ms-rteFontSize-3">for the server name. Install the SSH server but
+don't install any of the server snaps and cancel the updates at the
+end, we'll update after booting into our newly installed
+VM.</span><br>
+<p><span class="ms-rteFontSize-3"><br></span></p>
+<p><span class="ms-rteFontSize-3"><font size="+2"><span class=
+"ms-rteFontSize-4">FOG VM
+configuration</span></font><br></span></p>
+<p><span class="ms-rteFontSize-3">Reboot and login to&nbsp;your FOG
+server VM. Ubuntu server installs extra packages we don't need so
+lets update then get rid of them:</span></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<p><span class="ms-rteFontSize-3"><span><span class=
+"ms-rteFontSize-3">$ sudo apt update &amp;& sudo apt
+upgrade</span></span><br>
+$ sudo apt remove bcache-tools btrfs-progs cloud-guest-utils
+cloud-initramfs-copymods cloud-initramfs-dyn-netconf xfsprogs
+lxd-agent-loader open-iscsi open-vm-tools<br>
+$ sudo apt autoremove<br></span></p>
+</div>
+<div><br></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">Then we'll download the latest
+FOG code:</span></div>
+<br class="ms-rteFontSize-3">
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3">$</span> <span class=
+"ms-rteFontSize-3">git clone
+https://github.com/FOGProject/fogproject.git</span><br class=
+"ms-rteFontSize-3"></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">This is a good point to create
+a snapshot of your VM should you mess any of the following steps up
+and need to start over.</span></div>
+<p><br></p>
+<p><span class="ms-rteFontSize-3"><font size="+2"><span class=
+"ms-rteFontSize-4">Running
+installfog.sh</span></font><br></span></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<p><span class="ms-rteFontSize-3">$ sudo
+~/fogproject/bin/installfog.sh<br></span></p>
+</div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">Then choose:</span></div>
+<br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">Option 2 for Ubuntu
+packages</span><br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">N for Normal
+installation</span><br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">Don't change the default network
+interface</span><br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">Say Yes to setting up a router
+address for the DHCP server then enter your gateway ('router' - in
+my case its 192.168.0.1)</span><br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">Say Yes to DHCP to handle
+DNS</span><br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">For What DNS address should DHCP
+allow? Accept the default</span><br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">Say Yes to Would you like to use the
+FOG server for DHCP service?</span><br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">Say no to the language packs unless
+you want them</span><br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">Say no to enabling HTTPS unless you
+want to configure that. I'm not covering that
+here.</span><br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">Don't change the hostname if already
+set to fog-server</span><br class="ms-rteFontSize-3">
+<br class="ms-rteFontSize-3">
+<div><span class="ms-rteFontSize-3">The script will then download,
+install and configure the required packages. You will be required
+to click on a link or two to finish setting up the
+FOG&nbsp;database midway through the install script. Once the FOG
+install script has finished you can detach the host from the
+internet but still use FOG when its VM is running.<br></span></div>
+</body>
+</html>
