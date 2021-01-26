@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html; charset=utf-8">
+<title>Configuring ClamAV and LMD</title>
+</head>
+<body>
+<p><span class="ms-rteFontSize-5"><font size="+3">Configuring
+ClamAV and LMD</font><br></span></p>
+<p><span class="ms-rteFontSize-3"><a href=
+"https://www.clamav.net/">ClamAV</a> is the most popular and
+trusted open source Linux anti-virus program, which also means it
+is simple to install as it is present in the repos of most Linux
+distributions. It is recommended to use <strong>clamdscan</strong>
+instead of <b>clamscan</b> because <strong>clamdscan</strong> can
+use multiple CPU threads to speed up the scanning
+process.</span></p>
+<p><span class="ms-rteFontSize-3">First, make sure the required
+packages are installed, which under Ubuntu and Debian would require
+you run:<br></span></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3">$ sudo apt install clamav
+clamav-daemon</span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">Installing those will also
+install <strong>clamav-fleshclam</strong>, which is required to
+update the virus database.</span></div>
+<p><span class="ms-rteFontSize-3">Once <strong>clamav</strong> is
+installed, ensure its services are running and set to load at
+boot:<br></span></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<p><span class="ms-rteFontSize-3">$ sudo systemctl enable
+clamav-daemon</span></p>
+<p><span class="ms-rteFontSize-3">$ sudo systemctl enable
+clamav-freshclam</span></p>
+<p><span class="ms-rteFontSize-3">$ sudo systemctl&nbsp;start
+clamav-daemon</span></p>
+<p><span class="ms-rteFontSize-3">$ sudo systemctl&nbsp;start
+clamav-freshclam</span></p>
+</div>
+<div><br></div>
+<p><span class="ms-rteFontSize-3">Finally, create a cron job for
+the root user to run <strong>clamdscan</strong> on a regular basis
+on <strong>/home</strong>. For example, to run <b>clamdscan</b> at
+3 AM every day, the cron entry would look like:<br></span></p>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<p><span class="ms-rteFontSize-3">0 3 * * *&nbsp;/usr/bin/clamdscan
+-l /var/log/clamav.log --multiscan --fdpass --remove
+/home</span><br></p>
+</div>
+<p><br></p>
+<p><span class="ms-rteFontSize-3">Note that <strong>clamav</strong>
+doesn't&nbsp;create a log file by default, instead you must
+use&nbsp;the <strong>-l</strong> (l for <strong>l</strong>og)
+option to specify one.<br></span></p>
+<p><span class="ms-rteFontSize-3">It is recommended that you also
+install <a href=
+"https://www.rfxn.com/projects/linux-malware-detect/">Linux Malware
+Detect</a> as per <a href=
+"https://www.tecmint.com/install-linux-malware-detect-lmd-in-rhel-centos-and-fedora/">
+this guide</a> to detect more malware than ClamAV manages by
+itself.</span></p>
+</body>
+</html>
