@@ -55,13 +55,26 @@ on <strong>/home</strong>. For example, to run <b>clamdscan</b> at
 <p><span class="ms-rteFontSize-3">Note that <strong>clamav</strong>
 doesn't&nbsp;create a log file by default, instead you must
 use&nbsp;the <strong>-l</strong> (l for <strong>l</strong>og)
-option to specify one.<br></span></p>
+option to specify one.<br>
+<br></span></p>
+<p><span class="ms-rteFontSize-3"><font size="+2">Linux Malware
+Detect</font><br></span></p>
 <p><span class="ms-rteFontSize-3">It is recommended that you also
 install <a href=
 "https://www.rfxn.com/projects/linux-malware-detect/">Linux Malware
 Detect</a> as per <a href=
 "https://www.tecmint.com/install-linux-malware-detect-lmd-in-rhel-centos-and-fedora/">
 this guide</a> to detect more malware than ClamAV manages by
-itself.</span></p>
+itself.</span><br></p>
+<p><span class="ms-rteFontSize-3">Running the LMD install script
+creates a cron job to run LMD on a regular basis but the installer
+doesn't enable the realtime scanning daemon. To do
+that:<br></span></p>
+<div style=
+"background:#eeeedd none repeat scroll 0% 0%;border-color:gray;border-style:solid;">
+<span class="ms-rteFontSize-3"># apt install inotify-tools<br>
+# systemctl enable maldet<br>
+# systemctl start maldet</span></div>
+<br>
 </body>
 </html>
