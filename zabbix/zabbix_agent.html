@@ -166,27 +166,32 @@ host in question and then click 'Apply' to see what is currently
 being monitored for that host.</span></div>
 <div><br>
 <br></div>
+<div class="ms-rte-layoutszone-inner" aria-label=
+"Rich text editor">
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
 <p><font size="+2"><span class="ms-rteFontSize-4">Using the MD-RAID
 template</span></font><br></p>
 <p><span class="ms-rteFontSize-3">If you want to monitor the status
 of any Linux&nbsp;software RAID arrays, you must
 copy&nbsp;<strong>rabe.md-raid.conf</strong>
 into&nbsp;<strong>/etc/zabbix/zabbix_agentd.d</strong> on the
-machine being monitored (as <a href=
+machine being monitored (as <a moz-do-not-send="true" href=
 "https://github.com/radiorabe/rabe-zabbix/tree/master/app/MD-RAID">documented
-here</a>) and then restart the zabbix agent&nbsp;but you may
-also&nbsp;need to modify some of the template settings to use
-passive instead of active monitoring like so:</span></p>
-<p><span class="ms-rteFontSize-3">After adding the MD-RAID template
-to your host, under the Zabbix web interface go to
-<strong>Configuration -&gt; Hosts</strong> then click
-<strong>Discovery</strong> next to the relevant host. Now click
-<strong>Item prototypes</strong> next to the <strong>RAID device
-(MD) discovery</strong> rule then click on each of the 5 item
-prototypes and change the Type of all 5 Raid device item prototypes
-from <strong>Zabbix agent (active)</strong> to <strong>Zabbix
-agent</strong>.<br></span></p>
-<p><br></p>
-<p><br></p>
+here</a>) and then restart the zabbix agent and add the MD-RAID
+template to the host requiring it.<br></span></p>
+<p><br class="ms-rteFontSize-4"></p>
+<p><font size="+2"><span class="ms-rteFontSize-4">Using the ZFS
+template</span></font></p>
+<p><span class="ms-rteFontSize-3">In the same manner as you deploy
+the the MD-RAID template, clone the <a href=
+"https://github.com/Cosium/zabbix_zfs-on-linux">ZoL Zabbix template
+repo</a> and copy the</span> <span class=
+"ms-rteFontSize-3"><strong>ZoL_without_sudo.conf</strong> user
+parameters file into</span> <span class=
+"ms-rteFontSize-3"><strong>/etc/zabbix/zabbix_agentd.d</strong>&nbsp;on
+the machine you wish to monitor then restart the zabbix agent and
+add the ZFS template to the host under the Zabbix web
+UI.</span></p>
+</div>
 </body>
 </html>
