@@ -1,0 +1,1254 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html; charset=utf-8">
+<title>Configuring a ZFS LTSP server</title>
+</head>
+<body>
+<div>
+<h1><span class="ms-rteFontSize-3"><span class=
+"ms-rteFontSize-5">Notes on configuring a ZFS LTSP
+server</span></span></h1>
+</div>
+<div>
+<h3><span class="ms-rteFontSize-3"><span class=
+"ms-rteFontSize-4">Who are these notes for?<br></span></span></h3>
+<p>I recently configured a ZFS-based <span class=
+"ms-rteFontSize-3"><a moz-do-not-send="true" href=
+"https://ltsp.org/">LTSP</a> (Linux Terminal Server Project)</span>
+server based upon Ubuntu 20.04 for the University of Salford and
+these are the notes that I made in the process, slightly modified
+and sanitised for public use. These notes cover most of the main
+points of interest when setting up a LTSP server where each user
+has a ZFS-backed home directory with automated, user searchable
+snapshots, google-authenticator is used for two factor
+authentication for off-campus SSH access, LDAP is used for
+authentication and the source of the LTSP image is a VirtualBox VM
+to offer the administrator the most config options and to improve
+security.<br>
+<br></p>
+<h3>Disclaimers and gotchas<br></h3>
+<p>Note that this is NOT a step-by-step guide that you can blindly
+follow to set up a LTSP server. It is more of a collection of
+reference notes on setting up an advanced LTSP server for
+experienced Linux sys admins who can fill in the blanks.</p>
+<p>nslcd and LDAP were only used because the LDAPS server wasn't
+ready yet and so I had to configure the LTSP server to use the less
+secure LDAP. It is recommended you use <b>sssd-ldap</b> for LDAPS
+authentication if you are managing many users and you have the
+option to do so. Configuration of <b>sssd-ldap</b> is not covered
+here. Feel free to submit a PR to add such instructions or to
+improve anything else about these notes or the scripts it
+references.<br></p>
+<p>Salford University already had a use of proxy DHCP on their
+network in the form of their system imaging software and a
+requirement was that LTSP be booted via the Windows bootloader so
+this guide also covers some aspects of configuring a LTSP server
+for such a scenario which means setting up a simple webserver to
+provide the kernel and initrd etc via HTTP to GRUB4DOS in place of
+using the default auto-generated LTSP pxe boot menu to boot LTSP.
+This is quite a niche configuration and most users will probably
+want to use the default LTSP pxe menus to boot LTSP instead so many
+sections of this guide are likely not apply to your use case. As
+has already been noted it is recommend you do NOT use regular
+unencrypted LDAP for auhentication if it can be avoided but I
+thought someone else may be forced into using LDAP and so I have
+shared the steps I took to configure nslcd for LDAP.<br></p>
+<p><br></p>
+<h3>Overview of chosen hardware and software<br></h3>
+</div>
+<div><span class="ms-rteFontSize-3"><strong>Ubuntu Server
+20.04</strong> was chosen as the base OS for our new LTSP server.
+20.04 was the latest Ubuntu LTS release at the time of writing
+these notes. The server version was chosen mainly because the
+installer has more disk options than the desktop versions of
+Ubuntu.<br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<span class="ms-rteFontSize-3"><strong>mdadm</strong> software RAID
+was chosen for the system disks. Ubuntu Server makes installing
+Ubuntu with these features easier. We&nbsp;are using&nbsp;4 U.2
+NVME SSDs&nbsp;using md RAID 10 for the OS disks and then&nbsp;6x 4
+TB&nbsp;SATA 3 disks&nbsp;to&nbsp;create a ZFS RAIDZ2&nbsp;pool for
+the <strong>/home</strong> directories. We use <b>pam_exec</b> and
+sudo in a shell script to create a ZFS dataset for each users home
+directory at login. This enables each user to recover old versions
+of files or deleted files themselves from snapshots and search for
+file revisions using <b>findoid</b>.<br></span>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">Our old LTSP server was
+installed using Dell PERC hardware RAID 1 for the system disks
+which has the drawbacks of tying those disks to that controller
+type/model but more significantly it fails to boot from the second
+disk when you remove the first. These aren't issues when using
+software RAID.<br></span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div>Salford University purchased a Dell PowerEdge R7515 with a
+EPYC 7352 24-Core CPU, 128 GB RAM, 4x 2 TB NVME disks for the OS
+and 6x 4 GB SATA SSDs for the ZFS <b>/home</b> pool for use as the
+LTSP server used in these notes. This machine has proved to be more
+than sufficient to act as the server for hundreds of LTSP clients
+spread across several labs on campus but YMMV with this guide
+depending upon the spec of your server. You likely don't need 128
+GB RAM to use ZFS on a LTSP server but having more RAM always
+helps. You will want to use at least two disks for your ZFS pool to
+take advantage of self-healing in ZFS scrubs if any of your disks
+ever start to fail and to provide more safety for your
+data.<br class="ms-rteFontSize-3"></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div>
+<h3><span class="ms-rteFontSize-4">Install Ubuntu Server 20.04 on
+the LTSP server<br></span></h3>
+</div>
+<div><span class="ms-rteFontSize-4"><br>
+<span class="ms-rteFontSize-3">First, make sure UEFI boot mode is
+selected in the BIOS. This is required to boot from the u.2
+disks.</span> <span class="ms-rteFontSize-3">Boot Ubuntu server
+20.04 off USB and</span> <span class="ms-rteFontSize-3">choose UK
+keymaps and locale.</span><br class="ms-rteFontSize-3">
+<br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">On Network connections screen choose
+<strong>Create bond</strong> and bond interfaces</span>
+<span class="ms-rteFontSize-3"><strong>eno1</strong>,</span>
+<span class=
+"ms-rteFontSize-3"><strong>eno2</strong></span><span class=
+"ms-rteFontSize-3">, <strong>ens1f0np0</strong></span> <span class=
+"ms-rteFontSize-3">and <strong>ens1f1np1</strong></span>.<br class=
+"ms-rteFontSize-3">
+<br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">Choose <strong>802.3ad</strong> for
+the bond mode, <strong>layer2+3</strong> for the <strong>XMIT hash
+policy</strong> and set <strong>LACP</strong> rate to
+<strong>fast</strong>.</span><br class="ms-rteFontSize-3">
+<br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">Then select <strong>bond0</strong>
+-&gt; <strong>Edit IPv4</strong> and set the <strong>IPv4
+method</strong> option to <strong>manual</strong> and use these
+settings:</span><br class="ms-rteFontSize-3">
+<br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3"><strong>Subnet:</strong>
+ABC.DE.FG.H/IJ</span><br class="ms-rteFontSize-3">
+<br class="ms-rteFontSize-3">
+<span class=
+"ms-rteFontSize-3"><strong>Address:</strong></span></span>
+<span class="ms-rteFontSize-4"><span class=
+"ms-rteFontSize-3"><span class="ms-rteFontSize-4"><span class=
+"ms-rteFontSize-3">ABC.DE.FG.H</span></span></span><br class=
+"ms-rteFontSize-3">
+<br class="ms-rteFontSize-3">
+<span class=
+"ms-rteFontSize-3"><strong>Gateway:</strong></span></span>
+<span class="ms-rteFontSize-4"><span class=
+"ms-rteFontSize-3"><span class="ms-rteFontSize-4"><span class=
+"ms-rteFontSize-3">ABC.DE.FG.H</span></span></span><br class=
+"ms-rteFontSize-3">
+<br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3"><strong>Name
+servers:</strong></span></span> <span class=
+"ms-rteFontSize-4"><span class="ms-rteFontSize-3"><span class=
+"ms-rteFontSize-4"><span class=
+"ms-rteFontSize-3">ABC.DE.FG.H</span></span>,</span></span>
+<span class="ms-rteFontSize-4"><span class=
+"ms-rteFontSize-3"><span class="ms-rteFontSize-4"><span class=
+"ms-rteFontSize-3">ABC.DE.FG.H</span></span></span><br class=
+"ms-rteFontSize-3">
+<br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3"><strong>Search domains:</strong>
+our.domain<br></span></span></div>
+<div><span class="ms-rteFontSize-4"><span class=
+"ms-rteFontSize-3"><br></span></span></div>
+<div><span class="ms-rteFontSize-4"><span class=
+"ms-rteFontSize-3">Leave Proxy address blank and choose the default
+Ubuntu mirror</span><span class="ms-rteFontSize-3">. On the Guided
+storage configuration menu choose <strong>Custom storage
+layout</strong>.</span><br class="ms-rteFontSize-3">
+<br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">We are going to use Linux's software
+RAID, <strong>mdadm</strong>, instead of the Dell hardware RAID
+for&nbsp;two main reasons. By using software RAID we are able to
+configure the disks so that we are able to boot off any of them
+should the&nbsp;primary disk fail. <strong>md</strong> RAID also
+makes file recovery easier in disaster recovery situations. If you
+use hardware RAID you must use the same make and model RAID
+controller to access your disks if your machine fails.
+&nbsp;</span><br class="ms-rteFontSize-3">
+<br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">Remove all existing partitions
+('reformat') from every drive to be used, if there are
+any.&nbsp;For each drive you are going to use in the RAID array
+select <strong>Use as a boot device</strong> or <strong>Add as an
+additional boot device</strong>. This will create the (512 MB
+FAT32) EFI boot partition so you also need to create an unformatted
+GPT partition on each disk being used in the array using all the
+remaining space on the disk, but don't mount or format any of them
+at this stage.<br></span></span></div>
+<div><span class="ms-rteFontSize-4"><span class=
+"ms-rteFontSize-3"><br></span></span></div>
+<div><span class="ms-rteFontSize-4"><span class=
+"ms-rteFontSize-3">After creating four unformatted partitions, one
+on each disk, choose <strong>Create software RAID (md)</strong>. On
+the create software RAID menu, change the RAID level option to 10
+then select the four newly created
+partitions&nbsp;before&nbsp;selecting <strong>Create</strong>.
+After creating the software RAID device
+(<strong>/dev/md0</strong>), create a GPT partition on it then
+format it as <strong>XFS</strong> and mount it under
+<strong>/</strong> before choosing <strong>Done</strong> to finish
+disk config.</span><br class="ms-rteFontSize-3">
+<br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">I have chosen not to use LVM. LVM
+makes resizing partitions and data recovery more complex plus it
+can negatively impact RAID performance and we don't need any if its
+features anyway. XFS offers better performance over ext4, offers
+more features and it&nbsp;does&nbsp;filesystem checks faster. The
+only real downside is you cannot shrink an XFS partition whilst
+ext4 allows that. btrfs offers extra features over XFS and ext4 but
+its not as reliable or performant as XFS.</span> <span class=
+"ms-rteFontSize-3">See these <a href=
+"https://www.phoronix.com/scan.php?page=article&amp;item=linux-50-filesystems&amp;num=2">
+phoronix benchmarks</a>&nbsp;to see how XFS&nbsp;compares against
+ext4 and btrfs.</span><br class="ms-rteFontSize-3">
+<br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">Enter</span> <span class=
+"ms-rteFontSize-3">the servers name during installation then
+re-configure the hostname&nbsp;and set the
+timezone:<br></span></span></div>
+<div><span class="ms-rteFontSize-4"><span class=
+"ms-rteFontSize-3"><br></span></span></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div><span class="ms-rteFontSize-4"><span class=
+"ms-rteFontSize-3">$ sudo timedatectl set-timezone
+Europe/London<br>
+$ sudo hostnamectl set-hostname
+your.servers.hostname<br></span></span></div>
+</div>
+<div><br class="ms-rteFontSize-3"></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div><span class="ms-rteFontSize-4">Remove unwanted Ubuntu Server
+packages</span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div><span class="ms-rteFontSize-3">Ubuntu server installs several
+packages we don't require so lets remove them to reduce clutter and
+speed up the boot process:<br></span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3">$ sudo apt remove bcache-tools
+btrfs-progs cloud-guest-utils cloud-initramfs-copymods
+cloud-initramfs-dyn-netconf lxd-agent-loader open-iscsi
+open-vm-tools</span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div><span class="ms-rteFontSize-4"><br></span></div>
+<div>
+<h3><span class="ms-rteFontSize-4">Creating the ZFS
+pool</span></h3>
+<br>
+<span class="ms-rteFontSize-3">We are going to create a 6 SSD
+RAIDZ2 pool to store the LTSP users <strong>/home</strong>
+directories on.</span><br class="ms-rteFontSize-3">
+<br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">At the time of creating the pool I
+had a USB stick (the Ubuntu installer) attached to the server so
+this was <strong>/dev/sdg</strong></span><br class=
+"ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">Use <strong>lsblk</strong> to work
+out which device names are being used for the 6 SATA SSD disks
+before running any of these commands and ensure the RAID controller
+is enabled in the BIOS but set to HBA mode as detailed in the
+BIOS/UEFI settings section.</span><br class="ms-rteFontSize-3">
+<br class="ms-rteFontSize-3">
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3"># apt update &amp;& apt
+upgrade</span><br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3"># apt install
+zfsutils-linux</span><br class="ms-rteFontSize-3"></div>
+<span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">After installing</span>
+<strong class=
+"ms-rteFontSize-3">zfsutils-linux</strong><span class="ms-rteFontSize-3">,
+I rebooted to ensure the ZFS services would be loaded but that's
+optional.</span><br class="ms-rteFontSize-3">
+<br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">I created an empty ZFS partition on
+each disk to be used before creating the ZFS pool:</span>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3"># sgdisk --zap-all /dev/sdx # if you
+need to wipe any disks first</span><br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3"># sgdisk --new=1:0:0
+--typecode=1:BF00 /dev/sda</span><br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3"># sgdisk --new=1:0:0
+--typecode=1:BF00 /dev/sdb</span><br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3"># sgdisk --new=1:0:0
+--typecode=1:BF00 /dev/sdc</span><br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3"># sgdisk --new=1:0:0
+--typecode=1:BF00 /dev/sdd</span><br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3"># sgdisk --new=1:0:0
+--typecode=1:BF00 /dev/sde</span><br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3"># sgdisk --new=1:0:0
+--typecode=1:BF00 /dev/sdf</span><br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3"># zpool create -o ashift=13 -o
+autoexpand=on -o autoreplace=on -O atime=off -O compression=lz4
+astarray raidz2 /dev/sda1 /dev/sdb1 /dev/sdc1 /dev/sdd1 /dev/sde1
+/dev/sdf1</span><br class="ms-rteFontSize-3"></div>
+</div>
+<div><br></div>
+<div><span class="ms-rteFontSize-3">After running that
+command,</span> <strong class="ms-rteFontSize-3">zpool
+status</strong><span class="ms-rteFontSize-3">&nbsp;reports that
+these 6x 4 TB SSDs&nbsp;provide just&nbsp;over&nbsp;14 TB of usable
+space in the</span> <strong class=
+"ms-rteFontSize-3">astarray</strong> <span class=
+"ms-rteFontSize-3">RAIDZ2 pool.</span><br class="ms-rteFontSize-3">
+<br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">A couple more tweaks are recommended
+for using ZFS on SSDs, such as setting the ARC (the RAM based ZFS
+cache) to cache metadata only, instead of caching files and
+metadata and <span><span class="ms-rteFontSize-3">enable
+autotrim:<br>
+<br></span></span></span>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3"># zfs set primarycache=metadata
+astarray</span><br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3"># zpool set autotrim=on
+astarray</span><br class="ms-rteFontSize-3"></div>
+<span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">Next we'll create a dataset
+called</span> <strong class="ms-rteFontSize-3">home</strong>
+<span class="ms-rteFontSize-3">on our new pool, copy the
+existing</span> <strong class="ms-rteFontSize-3">/home</strong>
+<span class="ms-rteFontSize-3">into it, delete the old</span>
+<strong class="ms-rteFontSize-3">/home</strong> <span class=
+"ms-rteFontSize-3">and ZFS mount the new home
+directory/dataset:<br>
+<br></span>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3"><span class="ms-rteFontSize-3">#
+mkdir /tmp/home</span><br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3"># rsync -rav /home/
+/tmp/home/</span><br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3"># cd /</span><br class=
+"ms-rteFontSize-3">
+<span class="ms-rteFontSize-3"># rm -rf /home/</span><br class=
+"ms-rteFontSize-3">
+<span class="ms-rteFontSize-3"># zfs create -o <span><span class=
+"ms-rteFontSize-3">mountpoint=/home</span></span>
+astarray/home</span><br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3"># zfs create
+astarray/backups</span><br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3"># chmod o-rwx /astarray/backups/
+&nbsp;&nbsp; # Stop non-root users accessing files in the backup
+dir</span><br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3"># rsync -rav /tmp/home/
+/home/</span><br class="ms-rteFontSize-3"></span></div>
+<br>
+We will use the&nbsp;<strong>backups</strong> dataset for
+<b>syncoid</b> backups of the FYM and Zabbix containers.
+<span class="ms-rteFontSize-3">Now you can reboot to check
+<strong>/home</strong> has been successfully moved into the home
+dataset by running <strong>zfs list</strong> after a
+reboot.</span><br>
+<br>
+<span class="ms-rteFontSize-3">Several ZFS jobs are run via roots
+crontab including scheduling a weekly scrub, a trim every
+fortnight, pruning&nbsp;old
+snapshots&nbsp;and&nbsp;using&nbsp;syncoid&nbsp;to&nbsp;backup&nbsp;other&nbsp;machines:<br>
+
+<br></span></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3">0 3 */7 * * /usr/sbin/zpool scrub
+astarray &gt;/dev/null 2&gt;&amp;1</span><br class=
+"ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">0 22 */14 * * /usr/sbin/zpool trim
+astarray &gt;/dev/null 2&gt;&amp;1</span><br class=
+"ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">0 0 * * * /usr/sbin/syncoid
+--no-sync-snap --no-privilege-elevation
+zfsbackup@server1:lxdpool/containers/hermes astarray/backups/hermes
+&gt;/dev/null 2&gt;&amp;1</span><br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">0 1 * * * /usr/sbin/syncoid
+--no-sync-snap --no-privilege-elevation
+zfsbackup@server2:rpool/data/subvol-100-disk-0
+astarray/backups/zeus &gt;/dev/null 2&gt;&amp;1</span><br class=
+"ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">0 2 * * *
+/usr/local/bin/zfs-prune-snapshots 3M astarray/backups/hermes
+astarray/backups/zeus &gt;/dev/null 2&gt;&amp;1</span></div>
+<div><br></div>
+<div><span class="ms-rteFontSize-3">I wrote <a href=
+"/sites/sc02/TS018/Shared%20Documents/copy-ZFS-home-dirs.sh">this
+script</a> to transfer the home directories from the old LTSP
+server onto the new one using rsync and to create a ZFS dataset for
+each user before copying their files.<br></span></div>
+<div><br></div>
+<div><span class="ms-rteFontSize-3"><strong>sanoid</strong> is the
+most highly recommended program for creating and managing (auto
+pruning) ZFS snapshots. It's also very easy to install and
+configure. In our case it was simply a case of installing
+<strong>sanoid</strong> and creating a <a href=
+"/sites/sc02/TS018/Shared%20Documents/sanoid.conf">/etc/sanoid/sanoid.conf
+file like this</a>.<br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class=
+"ms-rteFontSize-3"><strong>/etc/default/zfs</strong> has a ZFS
+tunable called <strong>ZPOOL_IMPORT_ALL_VISIBLE</strong> which is
+set to <strong>no</strong> by default under Ubuntu. After
+experiencing an automatic reboot for a kernel update where the home
+directory pool didn't get imported I decided turning this on could
+only reduce the chance of that happening again and shouldn't cause
+any issues with importing other pools as its only connected to
+one.<br></span></div>
+<div><br></div>
+<div><br></div>
+<div><br></div>
+<div>
+<h2><span class="ms-rteFontSize-4">LTSP image
+configuration</span></h2>
+<br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">Here&nbsp;follows an outline of the
+manual steps to configure a Ubuntu 20.04 VM to be used as the basis
+for our LTSP image. It would be handy to automate&nbsp;most
+or&nbsp;all of these steps with an Ansible playbook or something
+similar to make upgrading to new releases easier.</span><br class=
+"ms-rteFontSize-3"></div>
+<div><br></div>
+<div><span class="ms-rteFontSize-3">Create a new user on the LTSP
+server called <strong>ltspadmin.&nbsp;</strong>Ensure that this
+isn't the name of group (and user) 1001 because we are using that
+GID for <strong>isdads-users</strong>. If this&nbsp;is the
+second&nbsp;user&nbsp;you&nbsp;are creating on the
+server&nbsp;(after the&nbsp;one created
+during&nbsp;installation)<strong>&nbsp;</strong>then&nbsp;it's&nbsp;likely&nbsp;that&nbsp;1001
+will&nbsp;be the default GID&nbsp;assigned to it unless you specify
+one manually when creating the user. Transfer the
+<strong>ltspadmin</strong> users home dir into its own ZFS dataset
+as described above and add <strong>ltspadmin</strong> to the
+<strong>epoptes</strong>
+group.&nbsp;<strong><br></strong></span></div>
+<div><span class=
+"ms-rteFontSize-3"><strong><br></strong></span></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3"># gpasswd -a ltspadmin
+epoptes<br></span></div>
+<div><span class=
+"ms-rteFontSize-3"><strong><br></strong></span></div>
+<div><span class="ms-rteFontSize-3">The <strong>ltspadmin</strong>
+user will be&nbsp;used to
+update&nbsp;the&nbsp;VirtualBox&nbsp;<strong>.vmdk</strong>&nbsp;image&nbsp;which&nbsp;will&nbsp;be&nbsp;used&nbsp;as
+the&nbsp;source of our&nbsp;LTSP&nbsp;image as
+well&nbsp;as&nbsp;for using&nbsp;<strong>epoptes</strong>.&nbsp;The
+LTSP&nbsp;image script can only currently
+import&nbsp;from&nbsp;<strong>.vmdk</strong>&nbsp;and&nbsp;<strong>.raw</strong>&nbsp;disk
+image files but VB cannot open raw disk image files, unlike
+<strong>virt-manager</strong>.&nbsp;VirtualBox under Linux works
+with the <strong>Cisco Anyconnect</strong> VPN client whilst
+<strong>virt-manager</strong> doesn't and VB available for various
+other operating systems so we are going to use
+<strong>VirtualBox</strong> and <strong>.vmdk</strong> to create
+and update&nbsp;LTSP images.<br></span></div>
+<div><br></div>
+<div><span class="ms-rteFontSize-3">When creating the VM to be
+used&nbsp;as the source&nbsp;of&nbsp;our LTSP image, be mindful
+that the <strong>ltsp image</strong> script&nbsp;prefers&nbsp;the
+image to be MBR / BIOS (non UEFI) disk images with a single ext4
+partition. If you have created a UEFI image by mistake then it is
+possible to import the image by finding out the partition ID using
+<strong>fdisk -l</strong> on the image and adding a
+<strong>,partition=X</strong> suffix to the end of the image file
+name where X is the ID number of the partition as shown by
+<strong>fdisk -l</strong>.</span><br></div>
+<div><br></div>
+<div><br class="ms-rteFontSize-3">
+<br class="ms-rteFontSize-3">
+<h2><span style="font-size: 15pt;">Create the VM and virtual
+disk</span></h2>
+<span class="ms-rteFontSize-3">For the base install I used
+<strong>ubuntu-20.04.3-desktop-amd64.iso</strong> as the VM
+installation media.</span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div><span class="ms-rteFontSize-3">When creating the VM, give it
+16 GB RAM (because thats what most of the machines in our labs
+have) and for the hard disk file type you must choose VMDK, fixed
+size and&nbsp;give it at least 20 GB of space. You don't want to
+make the vbox source VM image too big because it takes too long to
+copy and archive the disk image if its bigger than it needs to be.
+25 / 30 GB should be more than enough space. Note that VBoxManage
+lets you expand but doesn't let you shrink disk images so it's best
+to&nbsp;create them on the smaller side initially.</span><br></div>
+<div><br></div>
+<div><br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">On the software install page of
+Ubuntu installer choose <b>Normal</b> install and install the third
+party software. On the <b>Installation Type</b> page choose
+<b>Something Else</b> then click <b>Continue</b> then <b>New
+Partition table</b>. After creating a new partition table, click on
+<b>Free space</b> then click on the plus sign to create a new
+partition. Create a new primary ext4 partition that fills the disk
+and is mounted under /. If you accept the&nbsp;Ubuntu
+defaults&nbsp;on the&nbsp;Installation Type&nbsp;page it will
+create a boot partition. a root partition and a swap
+partition&nbsp;even on non&nbsp;UEFI machines but we only want a
+root partition. After creating the ext4 root partition you can
+click <b>Install Now</b>.</span><br class="ms-rteFontSize-3">
+<br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">When creating a user, leave it on
+<b>Require my password to login</b>, don't select <b>Use Active
+Directory</b> and use a different username to your regular LDAP/AD
+username when creating a user so that you can test LDAP is working,
+after it's been configured.</span><br class="ms-rteFontSize-3">
+<br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">After Ubuntu has installed, reboot
+into it, log in, then run:</span>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3"><span class="ms-rteFontSize-3">$
+sudo apt update &amp;& sudo apt upgrade</span></span></div>
+<br class="ms-rteFontSize-3">
+<br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">Then reboot again after all the
+updates have installed.</span> <span class="ms-rteFontSize-3">After
+rebooting and logging back in, install the latest NVIDIA
+driver:</span>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3">$ sudo apt install
+nvidia-driver-495</span><span class=
+"ms-rteFontSize-3"><br></span></div>
+</div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<br>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div>
+<h3><span class="ms-rteFontSize-3"><span class=
+"ms-rteFontSize-4">Convert the VM image into a LTSP
+image</span><br></span></h3>
+</div>
+<div><span class="ms-rteFontSize-3">The first time that you want to
+create a LTSP image from a VB VM image, you have to create a
+symbolic link from the VM to a file in the dir where LTSP expects
+to find your VM images:</span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3"># ln -s /home/ltspadmin/VirtualBox\
+VMs/Ubuntu-20.04/Ubuntu-20.04-flat.vmdk
+/srv/ltsp/Ubuntu-20.04.img<br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">You can then create and update
+your LTSP image by running:</span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div><span class="ms-rteFontSize-3"># ltsp image
+Ubuntu-20.04.img<br></span></div>
+<div><span class="ms-rteFontSize-3"># ltsp initrd<br></span></div>
+</div>
+<div><br>
+<br>
+<div><span class="ms-rteFontSize-3">VirtualBox allows the user to
+create snapshots of VMs when you are using <strong>.vmdks</strong>
+but you will have to remove (merge) any snapshots created for your
+LTSP VM before you run <strong>ltsp image</strong> to convert it
+into a LTSP image. If you don't remove&nbsp;any snapshots then your
+LTSP image will match the state of the most recent snapshot rather
+than the current state the VM, which is not usually the desired
+state.<br></span></div>
+<div><span class="ms-rteFontSize-3"><br>
+<br>
+<br></span></div>
+<h3><span style="font-size: 15pt;">Choice of desktops</span></h3>
+<span class="ms-rteFontSize-3">The standard Ubuntu iso includes the
+Ubuntu GNOME desktop but many Linux users (including myself) don't
+like GNOME so we're also installing the (KDE) Plasma desktop, which
+is the most powerful and configurable desktop as well as the MATE
+desktop which is more responsive and lightweight than GNOME and
+Plasma yet offers most of the features Windows, Mac and desktop
+Linux users are accustomed to. Unfortunately, MATE (the
+version&nbsp;in Ubuntu 20.04 at least) has logon issues with NVIDIA
+machines and so we will also install XFCE as an alternate
+lightweight desktop.<br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><br></div>
+<div>
+<h3><br></h3>
+</div>
+<div>
+<h3><span class="ms-rteFontSize-4">Display Manager</span></h3>
+</div>
+<div><br></div>
+<div><span class="ms-rteFontSize-3">The graphical login screen is
+referred to as the display manager under Linux. Regular Ubuntu
+defaults to using the GNOME <strong>GDM3</strong> display manager.
+<strong>GDM3</strong> defaults to showing all of the local accounts
+on the login screen which we don't want. <strong>lightdm</strong>
+also does this by default but <strong>lighdm</strong> is easier to
+configure than GDM3 and so we will be using
+<strong>lightdm</strong> in our LTSP image instead of gdm3.
+<strong>lightdm</strong> has the advantage of using less memory.
+Both support LDAP logins.<br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">To force users to have to enter
+a username and not show local users on the login screen when using
+<strong>lightdm</strong>, create
+<strong>/etc/lightdm/lightdm.conf</strong> if it doesn't already
+exist and add the lines:</span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3">[SeatDefaults]<br>
+greeter-hide-users=true<br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">Adding that config will only
+hide the users in the VM image. To apply the same change to the
+LTSP image you need to add:</span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class=
+"ms-rteFontSize-3">LIGHTDM_CONF="greeter-hide-users=true"<br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">To the <b>[clients]</b> section
+of <strong>/etc/ltsp/ltsp.conf</strong> and then run <strong>ltsp
+initrd</strong> to apply the change.<br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">The Ubuntu
+<strong>lightdm</strong> package installs the unity greeter by
+default. To change the background image of the
+<strong>lightdm</strong> unity greeter, edit the&nbsp;path to
+the&nbsp;background&nbsp;image&nbsp;in
+<strong>/usr/share/glib-2.0/schemas/com.canonical.unity-greeter.gschema.xml</strong>
+file and then run:<br>
+<br></span>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3"># glib-compile-schemas
+/usr/share/glib-2.0/schemas/<br></span></div>
+</div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">No additional config is
+required in <strong>ltsp.conf</strong> to change the
+<strong>lightdm</strong> background.<br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><span><span class=
+"ms-rteFontSize-3"><strong>Dell/gdm3 bug warning</strong>: The LTSP
+installation page recommends installing epoptes for a LTSP server
+install. If you've installed Ubuntu Server, you probably don't have
+X (and gdm3) installed so installing epoptes installs a minimal X
+config + gdm3. There seems to be a bug with Dell servers, Ubuntu
+20.04 and gdm3 that causes ssh to stop responding a short while
+after booting. The solution is to either mask the gdm3 service or
+switch to lightdm if you want a gui login screen on a Dell server
+running Ubuntu.</span></span><br></span></div>
+<div><br></div>
+<div><br></div>
+<div><span><span><span class=
+"ms-rteFontSize-3">Here&nbsp;is&nbsp;the <a href=
+"/sites/sc02/TS018/Shared%20Documents/LTSP-packages.txt">complete
+list of packages</a> we are going to install, all the ones not
+installed in a normal, full Ubuntu
+install.</span></span></span><br></div>
+<div><br></div>
+<div><br></div>
+<div><br></div>
+<div>
+<h3><span class="ms-rteFontSize-4">Fixing bugs&nbsp;and system
+tweaks for Ubuntu 20.04</span></h3>
+</div>
+<div><span class="ms-rteFontSize-3">Whilst the MATE
+indicators&nbsp;(desktop panel applets) seem to work&nbsp;fine if
+you install Ubuntu MATE, indicators&nbsp;don't&nbsp;seem to
+work&nbsp;if
+you&nbsp;install&nbsp;<strong>mate-desktop-environment</strong>&nbsp;as
+an additional&nbsp;desktop&nbsp;after&nbsp;installing&nbsp;regular
+Ubuntu.&nbsp;Most users&nbsp;can live
+without&nbsp;indicators&nbsp;so we&nbsp;can get
+rid&nbsp;of&nbsp;the&nbsp;'No&nbsp;Indicators'&nbsp;error in the
+MATE&nbsp;panel&nbsp;by running:</span></div>
+<div><br></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3">&nbsp;</span><span class=
+"ms-rteFontSize-3"># apt purge --yes --auto-remove
+indicator-application</span> <span class=
+"ms-rteFontSize-3">mate-indicator-applet<br></span></div>
+<div><br></div>
+<div><span class="ms-rteFontSize-3">If you've&nbsp;installed
+<strong>kubuntu-desktop</strong> and you launch the Plasma desktop
+then logout and log into an alternate desktop, you are likely to
+find the KDE keyboard shortcut helper app kglobalaccel5 is still
+running and crashes shortly after logging into MATE or GNOME. To
+fix this we can mask its dbus service:</span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3"># systemctl&nbsp;mask
+'dbus\x2d:1.2\x2dorg.kde.kglobalaccel.slice'<br></span></div>
+<div><br></div>
+<div><span class="ms-rteFontSize-3">If you are using the gdm3
+display manager (GUI login program) you will want to&nbsp;stop
+<a href=
+"https://bytefreaks.net/gnulinux/ubuntu-20-04lts-with-gdm3-disable-user-list-at-the-login-screen">
+the login screen showing a list of users</a>.<br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div>
+<div><span class="ms-rteFontSize-3">We don't want users having to
+click through the welcome screens when they log into GNOME for the
+first time. The GNOME welcome screens can be avoided by
+uninstalling</span> <span class=
+"ms-rteFontSize-3"><strong>gnome-initial-setup</strong>.</span></div>
+<span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">We also don't want Ubuntu
+prompting users to send bug reports every time anything crashes so
+we disable this by editing <strong>/etc/default/apport</strong>
+and</span> <span class="ms-rteFontSize-3">changing
+<strong>enabled=1</strong> to
+<strong>enabled=0</strong>.<br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">Logging on to MATE fails on
+NVIDIA machines under Ubuntu 20.04 if the user hasn't already
+disabled Marco (the MATE window manager) compositing.&nbsp;This is
+most easily changed by adjusting the Window Manager option under
+the Windows&nbsp;section&nbsp;of&nbsp;<strong>mate-tweak</strong>.
+This&nbsp;can supposedly be fixed by installing
+the&nbsp;patched&nbsp;Marco&nbsp;from the&nbsp;<a href=
+"https://launchpad.net/~ts.sch.gr/+archive/ubuntu/ppa">Greek
+Schools&nbsp;PPA</a> and adding a wrapper for Marco (see <a href=
+"https://github.com/mate-desktop/marco/issues/548">post #10
+here</a>) but that didn't work for me. The&nbsp;alternative
+workaround without any patches or PPAs is to log in on a non-NVIDIA
+machine to disable the Marco compositor first using
+<strong>mate-tweak</strong>.<br></span></div>
+<div><br></div>
+<div><br></div>
+<div><br></div>
+<div><br class="ms-rteFontSize-3">
+<h3><span style="font-size: 15pt;">PAM and LDAP
+configuration</span></h3>
+<span class="ms-rteFontSize-3">We currently use unencrypted LDAP
+for authentication&nbsp;and the&nbsp;plan is to switch to LDAPS as
+soon as possible. We&nbsp;would ideally have an on-site LDAPS
+server that would still be usable in case of an Azure outage so
+that we could still use Ubuntu if Windows and Azure ever become
+hobbled, assuming the campus network&nbsp;is otherwise
+OK.<br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">At&nbsp;first I tried to re-use
+the same LDAP config and client as we used under Ubuntu 16.04 but
+Ubuntu 20.04 refused to boot when using the openldap client.
+<strong>sssd-ldap</strong> only supports LDAPS and so it seems
+<strong>nslcd</strong> is our only option under Ubuntu to use a
+regular LDAP server for authentication.<br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">Note that the
+PAM&nbsp;config&nbsp;of the LTSP server&nbsp;is&nbsp;different to
+that used&nbsp;in the LTSP client image. We must&nbsp;additionally
+configure the LTSP server to create new ZFS datasets for users home
+directories the first time that they login, see relevant section
+below.<br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">The following steps&nbsp;are
+used to configure Ubuntu to authenticate with our LDAP server and
+are common to both the LTSP server and our LTSP client image
+configs.</span>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3"><span class="ms-rteFontSize-3">sudo
+apt -y install libnss-ldapd libpam-ldapd ldap-utils
+nslcd</span><br class="ms-rteFontSize-3"></span></div>
+<br></div>
+<div><span class="ms-rteFontSize-3">When the <strong>nslcd</strong>
+installer asks for the LDAP server URI&nbsp;and</span> <span class=
+"ms-rteFontSize-3">the search base</span> <span class=
+"ms-rteFontSize-3">accept the defaults for the first&nbsp;two
+settings
+because&nbsp;we&nbsp;will&nbsp;replace&nbsp;the&nbsp;nslcd&nbsp;config&nbsp;file.</span>
+<span class="ms-rteFontSize-3">When it asks which name services to
+configure&nbsp;- choose <strong>passwd</strong>,
+<strong>group</strong> and
+<strong>shadow</strong>.<br></span></div>
+<div><br></div>
+<div><span class="ms-rteFontSize-3">For historical reasons, we had
+to create the <strong>isdads-user</strong> group. This is the group
+to which all our students belong under LTSP.<br></span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3">#</span> <span class=
+"ms-rteFontSize-3">groupadd -g 1001 isdads-user</span><br></div>
+<div><br></div>
+<div><span><span class="ms-rteFontSize-3">Copy this <a href=
+"/sites/sc02/TS018/Shared%20Documents/nslcd.conf">nslcd.conf</a> to
+<strong>/etc/nslcd.conf</strong>&nbsp;in your LTSP Ubuntu
+VM,&nbsp;<span><span class="ms-rteFontSize-3">edit
+<strong>bindpw</strong> to use the correct LDAP
+password</span></span> and make sure its permissions are set
+correctly:<br></span></span></div>
+<div><br></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div><span class="ms-rteFontSize-3"># chown root:nslcd
+/etc/nslcd.conf</span></div>
+<div><span class="ms-rteFontSize-3"># chmod 640</span> <span class=
+"ms-rteFontSize-3">/etc/nslcd.conf<br></span></div>
+</div>
+<div><br></div>
+<div><br></div>
+<div><span class="ms-rteFontSize-3">NB to create normal (non-ZFS)
+home directories on login, run <strong>pam-auth-update</strong> and
+enable <strong>Create home directory on login</strong>. We're not
+using this method (<strong>pam_mkhomedir.so</strong>) because it
+doesn't support creating ZFS home directories with unique
+datasets.<br></span></div>
+<div><br></div>
+<div><br></div>
+<div>
+<h3><span class="ms-rteFontSize-4">Adding 2FA to external
+SSH</span></h3>
+</div>
+<div><br></div>
+<div><span><span class="ms-rteFontSize-3">Infosec requested that we
+add 2FA (Two
+Factor&nbsp;Auth)&nbsp;for&nbsp;off-campus&nbsp;ssh&nbsp;access.&nbsp;The
+following&nbsp;configures PAM to&nbsp;request a&nbsp;6 digit
+verification&nbsp;code&nbsp;when&nbsp;connecting&nbsp;from&nbsp;off
+campus before&nbsp;the user&nbsp;gets asked for&nbsp;their
+password.<br></span></span></div>
+<div><br></div>
+<div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3">$ sudo apt install
+libpam-google-authenticator</span></div>
+<br class="ms-rteFontSize-3">
+<br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">Create
+<strong>/etc/security/campus.conf</strong>:</span></div>
+<div><br></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3"># Campus wired LAN<br>
++ : ALL : AB.EF.G.H/IJ<br>
+# Campus WiFi<br>
++ : ALL : AB.EF.G.H/IJ<br>
++ : ALL : AB.EF.G.H/IJ<br>
++ : ALL : LOCAL<br>
+- : ALL : ALL</span></div>
+<div><br></div>
+<div><br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">Add these two lines above
+<strong>@include common-auth</strong> in
+<strong>/etc/pam.d/sshd</strong>, at the top of the
+file:</span><br class="ms-rteFontSize-3">
+<br class="ms-rteFontSize-3">
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3">auth [success=1 default=ignore]
+pam_access.so accessfile=/etc/security/campus.conf<br class=
+"ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">auth&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+required&nbsp; pam_google_authenticator.so</span><br class=
+"ms-rteFontSize-3">
+<span class="ms-rteFontSize-3"># Standard Un*x
+authentication.</span><br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">@include
+common-auth</span><br class="ms-rteFontSize-3"></span></div>
+<br></div>
+<div><span class="ms-rteFontSize-3">Enable
+<strong>ChallengeResponseAuthentication</strong> in
+<strong>/etc/ssh/sshd_config</strong> and</span> <span class=
+"ms-rteFontSize-3">enable the use of SSH keys&nbsp;on
+campus&nbsp;but not&nbsp;externally&nbsp;by setting
+<strong>PubkeyAuthentication</strong> to <strong>no</strong> but
+also add these lines to the end of
+<strong>/etc/ssh/sshd_config</strong> :</span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3">Match Address</span> <span class=
+"ms-rteFontSize-3"><span class=
+"ms-rteFontSize-3">AB.EF.G.H</span>/IJ,</span><span class=
+"ms-rteFontSize-3"><span class=
+"ms-rteFontSize-3">AB.EF.G.H</span>/IJ,</span><span class=
+"ms-rteFontSize-3"><span class=
+"ms-rteFontSize-3">AB.EF.G.H</span>/IJ</span><br class=
+"ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">&nbsp;&nbsp;&nbsp;
+PubkeyAuthentication yes</span><br></div>
+<div><br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">After making these changes, restart
+the <strong>ssh</strong> service. Users accessing the server via
+ssh off-campus will now be prompted for a verification code before
+their password. See the user instructions for&nbsp;<a href=
+"/sites/sc02/TS018/CSSE%20wiki/Google%20Authenticator.aspx">configuring&nbsp;Google&nbsp;Authenticator
+here</a>.</span><br></div>
+<div><br></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><br></div>
+<div>
+<h3><span class="ms-rteFontSize-4">Creating&nbsp;a&nbsp;ZFS home
+directory/dataset for each user on&nbsp;initial
+login<br></span></h3>
+</div>
+<div><br></div>
+<div><span class="ms-rteFontSize-3">This part is only configured on
+the LTSP server, not on the client. <strong>pamltsp</strong> takes
+care of creating the local home directory on the LTSP clients
+which&nbsp;is really a link to the <strong>sshfs</strong> copy of
+their ZFS-backed <strong>/home</strong> directory on the
+server.<br></span></div>
+<div><br></div>
+<div><span class="ms-rteFontSize-3">Edit
+<strong>/etc/pam.d/common-session</strong> on the LTSP server and
+comment out or delete:</span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3">session optional
+pam_mkhomedir.so</span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div><span class="ms-rteFontSize-3">If it is present and add the
+line:</span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3">session optional</span> <span class=
+"ms-rteFontSize-3">pam_exec.so
+/usr/local/bin/mkzfshome.sh</span></div>
+<br>
+<br>
+<span class="ms-rteFontSize-3">To the end of the file.
+<strong>mkzfshome.sh</strong> is a <a href=
+"/sites/sc02/TS018/Shared%20Documents/mkzfshome.sh">script like
+this</a>. Note that if you wanted to use this script with the gdm3
+display manager you would replace <strong>lightdm</strong> with
+<strong>gdm</strong> in line 2 to prevent the display manager
+crea<span>ting a home directory for itself.</span></span>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">Running this script requires
+root permissions so we will configure sudo to give all members of
+the <strong>isdads-user</strong> group (GID 1001) permission to run
+this script as root and without entering a password by running
+<strong>visudo</strong> on the LTSP server and adding:</span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3">%isdads-user ALL=(ALL) NOPASSWD:
+/usr/local/bin/mkzfshome.sh<br></span></div>
+<div><br></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div>
+<h3><span class="ms-rteFontSize-3"><span class=
+"ms-rteFontSize-4">Booting LTSP</span><br></span></h3>
+</div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">LTSP expects (prefers) to be
+the only PXE based service on the network. The university
+already&nbsp;uses PXE&nbsp;for imaging&nbsp;software&nbsp;and so
+using&nbsp;proxy&nbsp;DHCP&nbsp;to boot&nbsp;LTSP&nbsp;isn't an
+option&nbsp;for us&nbsp;so we&nbsp;have to&nbsp;work
+around&nbsp;this&nbsp;situation
+by&nbsp;chainloading&nbsp;a&nbsp;custom&nbsp;iPXE&nbsp;menu from
+the Windows bootloader using GRUB4DOS (g4d).<br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">At the time of writing, we are
+still using an old version of g4d that does not support UEFI. g4d
+has supposedly been updated to support UEFI (grub4efi) but&nbsp;the
+grub4dos home page is currently down. When the time to update the
+bootloader arrives, we will need to evaluate&nbsp;if we would be
+better using an updated g4d or switching to win32-loader which is
+based on grub2 and also supports UEFI.<br></span></div>
+<div><br></div>
+<div><span class="ms-rteFontSize-3">LTSP configures a TFTP server
+to provide the kernel and initrd files required by LTSP clients to
+boot. That's great if we were PXE booting on LTSPs&nbsp;ideal
+network but&nbsp;that's not the case
+for&nbsp;us.&nbsp;g4d&nbsp;does&nbsp;support&nbsp;TFTP&nbsp;but&nbsp;we
+had no
+luck&nbsp;in&nbsp;configuring&nbsp;g4d&nbsp;to&nbsp;download&nbsp;the&nbsp;ipxe
+menu, kernel
+and&nbsp;initrd&nbsp;files&nbsp;via&nbsp;TFTP&nbsp;so&nbsp;instead&nbsp;we&nbsp;are
+going to&nbsp;configure a&nbsp;basic&nbsp;web server&nbsp;on our
+LTSP&nbsp;server&nbsp;to&nbsp;host&nbsp;our custom ipxe&nbsp;file,
+the&nbsp;kernel&nbsp;and initrd&nbsp;files.<br></span></div>
+<div><br></div>
+<div><span class="ms-rteFontSize-3">There&nbsp;is no point&nbsp;to
+installing&nbsp;Apache&nbsp;and its many modules&nbsp;simply
+to&nbsp;serve&nbsp;three&nbsp;files&nbsp;so
+instead&nbsp;we'll&nbsp;install&nbsp;<strong>lighttpd</strong> on
+the LTSP&nbsp;server.&nbsp;You&nbsp;only&nbsp;need to
+install&nbsp;the&nbsp;<strong>lighttpd</strong>&nbsp;package
+then&nbsp;edit&nbsp;</span><span class=
+"ms-rteFontSize-3"><strong>/etc/lighttpd/</strong></span><span class="ms-rteFontSize-3"><strong>lighttpd.conf</strong>
+and edit the</span> <span class=
+"ms-rteFontSize-3"><strong>server.document-root</strong>&nbsp;setting&nbsp;to&nbsp;point
+to <strong>/srv/tftp/ltsp</strong> then restart the lighttpd
+service with <strong>systemctl</strong>.<br></span></div>
+<div><br></div>
+<div><span><span class="ms-rteFontSize-3">If we were using the
+default LTSP ipxe menu (as generated when you run <strong>ltsp
+ipxe</strong> on the LTSP server), then ltsp would auto-generate an
+ipxe boot menu&nbsp;with all of the LTSP images available to boot
+from that server. In our case we create an</span> <a href=
+"/sites/sc02/TS018/Shared%20Documents/LTSP-Ubuntu-20.04.ipxe"><span class="ms-rteFontSize-3">
+ipxe boot script in</span> <span class=
+"ms-rteFontSize-3"><strong>/srv/tftp/ltsp</strong> like
+this</span></a> <span class="ms-rteFontSize-3">which can be
+chainloaded from g4d with a command
+like:</span><br></span><br></div>
+<div><br></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3">chain
+http://ltspserver/LTSP-Ubuntu-20.04.ipxe<br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div>
+<h3><span class="ms-rteFontSize-3"><span class=
+"ms-rteFontSize-4">Configuring ltsp.conf</span><br></span></h3>
+</div>
+<div><span class="ms-rteFontSize-3">You&nbsp;may get a pamltsp
+error about <b>sshfs</b> failing to mount your home directory if
+you try logging on to a LTSP client using a username that is
+present as a local user on the LTSP server or within your LTSP
+image.&nbsp;Note that all&nbsp;of the local&nbsp;users present on
+the LTSP server get copied into the LTSP image when you run
+<strong>ltsp image</strong> and so pamltsp mistakes your login
+attempt for a local instead of a LDAP user if they exist locally.
+The&nbsp;workaround is to add a statement such as
+<strong>PWMERGE_SUR="sgs548"</strong> to the
+<strong>[clients]</strong> section of <strong>ltsp.conf</strong>.
+This will allow the specified user to login&nbsp;via LDAP on a LTSP
+client and have the home dir successfully mounted via
+sshfs.<br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">Another potential configuration
+that would result in the same pamltsp login error would be if a
+user has been created on the LTSP server using a different SSH/user
+password to that same users current LDAP/AD password.
+These&nbsp;passwords would have to match for the home dir to be
+mounted successfully.<br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">Users may see the
+error:<br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3">groups: cannot find name for group
+ID 1001</span></div>
+<br>
+<span class="ms-rteFontSize-3">Every time they open a terminal
+if</span> <strong class="ms-rteFontSize-3">isdads-user</strong>
+<span class="ms-rteFontSize-3">isn't defined in</span>
+<strong class="ms-rteFontSize-3">/etc/groups</strong> <span class=
+"ms-rteFontSize-3">in the LTSP image.</span> <strong class=
+"ms-rteFontSize-3">ltsp image</strong> <span class=
+"ms-rteFontSize-3">will not copy the group from the VM image into
+the LTSP image unless the group has at least one local user listed
+as a member of</span> <strong class=
+"ms-rteFontSize-3">isdads-user</strong> <span class=
+"ms-rteFontSize-3">in</span> <strong class=
+"ms-rteFontSize-3">/etc/groups</strong> <span class=
+"ms-rteFontSize-3">within the VM image. This error&nbsp;should
+supposedly be fixed by adding:</span><br class="ms-rteFontSize-3">
+<br class="ms-rteFontSize-3">
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class=
+"ms-rteFontSize-3">PWMERGE_DGR="isdads-user"</span></div>
+<br class="ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">to the</span> <strong class=
+"ms-rteFontSize-3">[common]</strong> <span class=
+"ms-rteFontSize-3">section of</span> <strong class=
+"ms-rteFontSize-3">/etc/ltsp/ltsp.conf</strong> <span class=
+"ms-rteFontSize-3">on the LTSP server and then running <strong>ltsp
+initrd</strong> but this solution doesn't work most of the time
+under LTSP 22.01. The&nbsp;only&nbsp;reliable&nbsp;way I've found
+to fix this&nbsp;is&nbsp;to edit line 34 (the line that calls
+pwmerge) in
+<strong>/usr/share/ltsp/server/image/55-cleanup.sh</strong> on the
+LTSP server to look like:<br>
+<br></span>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3">re "$_LTSP_DIR/client/login/pwmerge"
+--ltsp --quiet --dgr=isdads-user \</span></div>
+<span class="ms-rteFontSize-3"><br>
+Without adding <strong>--dgr=isdads-user</strong>,
+<strong>pwmerge</strong> removes
+the&nbsp;<strong>isdads-user</strong> group from
+<strong>/etc/group</strong>, even though it has a local user as a
+member which I don't think is how the script is intended to
+operate.</span><br class="ms-rteFontSize-3">
+<div><br></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><br></div>
+<div>
+<h3><span class="ms-rteFontSize-4">Firewall config<br></span></h3>
+</div>
+<div><br></div>
+<div><span class="ms-rteFontSize-3">It is not possible to disable
+SSH password logins on a LTSP&nbsp;server or else users wouldn't be
+able to login&nbsp;and so it is recommended to use
+<strong>fail2ban</strong> to help prevent brute force SSH
+password&nbsp;attacks. <strong>fail2ban</strong> requires that a
+local software firewall be installed, configured and enabled before
+it can actually block IPs plus&nbsp;your timezone and clock must be
+correctly configured. fail2ban also requires a bit of
+configuration. You must correctly configure at least
+<strong>bantime</strong>, <strong>banaction</strong> (which should
+be set to <strong>iptables-multiport</strong>) and the
+<strong>chain</strong> directive (eg <strong>chain = INPUT</strong>
+to use the <strong>iptables</strong> chain named INPUT to add the
+blocked IP addresses to) in
+<strong>/etc/fail2ban/jail.local</strong> .</span><br></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div>
+<div><span class="ms-rteFontSize-3">Ubuntu uses
+<strong>ufw</strong>&nbsp;to manage
+<strong>iptables</strong>&nbsp;by default. One problem with
+<strong>ufw</strong> is that you cannot specify multiple sources in
+a single command when creating rules and there's no need for a
+desktop style helper tool like this on a server so I uninstalled
+<strong>ufw</strong> and installed
+<strong>iptables-persistent</strong> instead. Make sure the
+<strong>netfilter-persistent</strong> service is enabled so that
+your <strong>iptables</strong> config is loaded at
+boot.<br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">I removed the
+<strong>ufw</strong> rules by running these commands as
+root:</span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<div><span class="ms-rteFontSize-3">for i in `iptables -L INPUT
+--line-numbers |grep '[0-9].*ufw' | cut -f 1 -d ' ' | sort -r `; do
+iptables -D INPUT $i ; done</span></div>
+<div><span class="ms-rteFontSize-3">for i in `iptables -L FORWARD
+--line-numbers |grep '[0-9].*ufw' | cut -f 1 -d ' ' | sort -r `; do
+iptables -D FORWARD $i ; done</span></div>
+<div><span class="ms-rteFontSize-3">for i in `iptables -L OUTPUT
+--line-numbers |grep '[0-9].*ufw' | cut -f 1 -d ' ' | sort -r `; do
+iptables -D OUTPUT $i ; done</span></div>
+<div><span class="ms-rteFontSize-3">for i in `iptables -L | grep
+'Chain .*ufw' | cut -d ' ' -f 2`; do iptables -X $i ;
+done</span></div>
+</div>
+</div>
+<div><span style="font-size: 13pt;"><br></span></div>
+<div><span style="font-size: 13pt;"><br></span></div>
+<div>
+<h3><span style="font-size: 13pt;"><span class=
+"ms-rteFontSize-4">Showing motd when users open a
+terminal</span><br></span></h3>
+</div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span style="font-size: 13pt;"><span class=
+"ms-rteFontSize-3">I wrote a <a href=
+"/sites/sc02/TS018/Shared%20Documents/asteria-motd.txt">motd
+file&nbsp;with instructions for using the server</a>&nbsp;and I
+wanted users to see it every time they open a terminal, unless they
+choose to disable it.</span> To modify the
+<strong>~/.bashrc</strong> file of all existing users to print the
+motd when opening a terminal I ran:<br></span></div>
+<div><span style="font-size: 13pt;"><br></span></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span style="font-size: 13pt;"># for homedir in /home/*; do echo
+"cat /etc/motd" &gt;&gt; "$homedir/.bashrc"; done</span></div>
+<div><span style="font-size: 13pt;"><br></span></div>
+<div><span style="font-size: 13pt;">To do the same for future new
+users I appended <span><span style="font-size: 13pt;"><strong>cat
+/etc/motd</strong></span></span> to
+<strong>/etc/skel/</strong><span><span style=
+"font-size: 13pt;"><strong>.bashrc</strong></span></span><br></span></div>
+<div><span style="font-size: 13pt;"><br></span></div>
+<div><span style="font-size: 13pt;">You may need to comment out the
+<span class="comment-copy"><strong>pam_motd.so</strong></span>
+lines in <span class=
+"comment-copy"><strong>/etc/pam.d/sshd</strong></span> if your motd
+gets printed twice when you login via ssh.<br></span></div>
+<div><span style="font-size: 13pt;"><br></span></div>
+<div>
+<h3><span style="font-size: 13pt;"><br></span></h3>
+</div>
+<div>
+<h3><span style="font-size: 13pt;"><span class=
+"ms-rteFontSize-4">Backups</span><br></span></h3>
+</div>
+<div><span style="font-size: 13pt;"><br></span></div>
+<div><span style="font-size: 13pt;">There are two components to
+backing up asteria. The OS gets backed&nbsp;up to a&nbsp;local 1 TB
+USB&nbsp;disk&nbsp;connected&nbsp;directly&nbsp;to&nbsp;the server
+using&nbsp;ReaR&nbsp;(RElax&nbsp;And&nbsp;Recover)&nbsp;whilst&nbsp;the
+home&nbsp;dirs&nbsp;get&nbsp;synced&nbsp;daily&nbsp;to&nbsp;leto
+using&nbsp;<strong>syncoid</strong>. The cron job to sync asterias
+<strong>/home</strong> onto letos <strong>/home</strong> every
+night at 10 PM is:</span></div>
+<div><span style="font-size: 13pt;"><br></span></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span style="font-size: 13pt;"><span class="ms-rteFontSize-2">0 22
+* * * /usr/sbin/syncoid --no-sync-snap --no-privilege-elevation
+--recursive zfsbackup@server3:astarray/home letome/home
+&gt;/dev/null 2&gt;&amp;1</span><br></span></div>
+<div><span style="font-size: 13pt;"><br></span></div>
+<div><span style="font-size: 13pt;">Note that syncoid
+only&nbsp;copies ZFS snapshots. You may be using sanoid to prune
+old snapshots on the source but syncoid does not remove deleted
+snapshots from the target pool when they get removed from the
+source hence we run <strong>zfs-prune-snapshots</strong> daily via
+a cron job on leto to remove any snapshots older than three
+months.<br></span></div>
+<div><span style="font-size: 13pt;"><br></span></div>
+<div><span style="font-size: 13pt;">We must configure rear to use a
+&gt;= 512 MB UEFI partition (400 MB is the default in the version
+of rear used in Ubuntu 20.04 and that is slightly too small) for
+the recovery disk and we also need to tell it not to backup the ZFS
+home directory pool (or more specifically its disks) nor any of the
+attached USB disks which can be done by creating a <a href=
+"/sites/sc02/TS018/Shared%20Documents/local.conf">/etc/rear/local.conf
+like this</a>. The rear <a href=
+"https://github.com/rear/rear">quickstart guide</a> covers the
+steps for creating a rear backup. rear currently has no support for
+ZFS so the home dir pool would need to be separately restored in a
+server recovery scenario.<br></span></div>
+<div><span style="font-size: 13pt;"><br></span></div>
+<div><span style="font-size: 13pt;"><br></span></div>
+<div><span style="font-size: 13pt;"><br></span></div>
+<div>
+<h3><span style="font-size: 13pt;"><span class=
+"ms-rteFontSize-4">Enable root login</span><br></span></h3>
+</div>
+<div><span style="font-size: 13pt;"><br></span></div>
+<div><span style="font-size: 13pt;">If you are having problems with
+LTSP, for example&nbsp;if you are trying to configure LDAP and you
+need to view various log files to troubleshoot, you can enable root
+login on your LTSP clients by adding the following lines to
+ltsp.conf:<br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class=
+"ms-rteFontSize-3">POST_INIT_SET_ROOT_HASH="section_set_root_hash"</span><br class="ms-rteFontSize-3">
+
+<span class="ms-rteFontSize-3">[set_root_hash]</span><br class=
+"ms-rteFontSize-3">
+<span class="ms-rteFontSize-3">sed
+'s|^root:[^:]*:|root:HASHEDPASSWORD:|' -i
+/etc/shadow</span><br></div>
+<div><span style="font-size: 13pt;"><br></span></div>
+<div><span style="font-size: 13pt;">Replace
+<strong>HASHEDPASSWORD</strong> with a hashed password. You can
+hash your root password with <strong>mkpasswd</strong> which is
+installed as part of the <strong>whois</strong> package under
+Ubuntu and Debian.<br></span></div>
+<div><span style="font-size: 13pt;"><br></span></div>
+</body>
+</html>
