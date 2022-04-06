@@ -1,0 +1,51 @@
+arduino
+audacity
+caja-open-terminal
+code   (Visual Studio Code installed from 64 bit .deb file)
+dos2unix
+epoptes-client
+ffmpegthumbnailer
+filezilla
+gfortran
+gimp
+gimp-gutenprint
+gimp-plugin-registry
+git
+google-chrome (installed from .deb file)
+grace
+hexedit
+jmol
+kubuntu-desktop (but remove ktorrent)
+libfftw3-dev
+libopenblas-dev
+libopenmpi-dev
+libpam-google-authenticator
+lightdm
+ltsp  (installed from LTSP ppa)
+mate-desktop-environment
+mate-tweak
+mhwaveedit
+micro
+mpv
+ncdu
+nvidia-driver-495
+phpstorm (tarball from phpstorm site uncompressed into /opt)
+pwgen
+python-is-python3
+python3-pyqt5.qtsql
+rgbpaint
+simplescreenrecorder
+texlive
+texstudio
+thunar
+thunar-archive-plugin
+tmux
+tree
+unrar
+vim
+vim-doc
+virt-manager
+virtualbox
+virtualbox-ext-pack
+virtualbox-guest-additions-iso
+xfce4

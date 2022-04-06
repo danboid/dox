@@ -1,0 +1,6 @@
+#!ipxe
+kernel http://ltspserver/Ubuntu-20.04/vmlinuz
+initrd http://ltspserver/ltsp.img
+initrd http://ltspserver/Ubuntu-20.04/initrd.img
+imgargs vmlinuz append initrd=ltsp.img initrd=initrd.img root=/dev/nfs nfsroot=ltspserver:/srv/ltsp ltsp.image=images/Ubuntu-20.04.img loop.max_part=9 nvidia-drm.modeset=1
+boot

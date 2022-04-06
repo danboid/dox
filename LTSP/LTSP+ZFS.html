@@ -380,18 +380,20 @@ astarray/backups/zeus &gt;/dev/null 2&gt;&amp;1</span><br class=
 astarray/backups/zeus &gt;/dev/null 2&gt;&amp;1</span></div>
 <div><br></div>
 <div><span class="ms-rteFontSize-3">I wrote <a href=
-"/sites/sc02/TS018/Shared%20Documents/copy-ZFS-home-dirs.sh">this
-script</a> to transfer the home directories from the old LTSP
-server onto the new one using rsync and to create a ZFS dataset for
-each user before copying their files.<br></span></div>
+"https://raw.githubusercontent.com/danboid/dox/main/LTSP/copy-ZFS-home-dirs.sh"
+moz-do-not-send="true">this script</a> to transfer the home
+directories from the old LTSP server onto the new one using rsync
+and to create a ZFS dataset for each user before copying their
+files.<br></span></div>
 <div><br></div>
 <div><span class="ms-rteFontSize-3"><strong>sanoid</strong> is the
 most highly recommended program for creating and managing (auto
 pruning) ZFS snapshots. It's also very easy to install and
 configure. In our case it was simply a case of installing
 <strong>sanoid</strong> and creating a <a href=
-"/sites/sc02/TS018/Shared%20Documents/sanoid.conf">/etc/sanoid/sanoid.conf
-file like this</a>.<br></span></div>
+"https://raw.githubusercontent.com/danboid/dox/main/LTSP/sanoid.conf"
+moz-do-not-send="true">/etc/sanoid/sanoid.conf file like
+this</a>.<br></span></div>
 <div><span class="ms-rteFontSize-3"><br></span></div>
 <div><span class=
 "ms-rteFontSize-3"><strong>/etc/default/zfs</strong> has a ZFS
@@ -468,7 +470,7 @@ name where X is the ID number of the partition as shown by
 <h2><span style="font-size: 15pt;">Create the VM and virtual
 disk</span></h2>
 <span class="ms-rteFontSize-3">For the base install I used
-<strong>ubuntu-20.04.3-desktop-amd64.iso</strong> as the VM
+<strong>ubuntu-20.04.4-desktop-amd64.iso</strong> as the VM
 installation media.</span></div>
 <div><br class="ms-rteFontSize-3"></div>
 <div><span class="ms-rteFontSize-3">When creating the VM, give it
@@ -649,9 +651,9 @@ running Ubuntu.</span></span><br></span></div>
 <div><br></div>
 <div><span><span><span class=
 "ms-rteFontSize-3">Here&nbsp;is&nbsp;the <a href=
-"/sites/sc02/TS018/Shared%20Documents/LTSP-packages.txt">complete
-list of packages</a> we are going to install, all the ones not
-installed in a normal, full Ubuntu
+"https://raw.githubusercontent.com/danboid/dox/main/LTSP/LTSP-packages.txt"
+moz-do-not-send="true">complete list of packages</a> we are going
+to install, all the ones not installed in a normal, full Ubuntu
 install.</span></span></span><br></div>
 <div><br></div>
 <div><br></div>
@@ -783,7 +785,8 @@ to which all our students belong under LTSP.<br></span></div>
 "ms-rteFontSize-3">groupadd -g 1001 isdads-user</span><br></div>
 <div><br></div>
 <div><span><span class="ms-rteFontSize-3">Copy this <a href=
-"/sites/sc02/TS018/Shared%20Documents/nslcd.conf">nslcd.conf</a> to
+"https://raw.githubusercontent.com/danboid/dox/main/LTSP/nslcd.conf"
+moz-do-not-send="true">nslcd.conf</a> to
 <strong>/etc/nslcd.conf</strong>&nbsp;in your LTSP Ubuntu
 VM,&nbsp;<span><span class="ms-rteFontSize-3">edit
 <strong>bindpw</strong> to use the correct LDAP
@@ -804,9 +807,64 @@ home directories on login, run <strong>pam-auth-update</strong> and
 enable <strong>Create home directory on login</strong>. We're not
 using this method (<strong>pam_mkhomedir.so</strong>) because it
 doesn't support creating ZFS home directories with unique
-datasets.<br></span></div>
+datasets.<br>
+<br>
+<br></span><br>
+<div>
+<h3><span class="ms-rteFontSize-4">Creating&nbsp;a&nbsp;ZFS home
+directory/dataset for each user on&nbsp;initial
+login<br></span></h3>
+</div>
 <div><br></div>
+<div><span class="ms-rteFontSize-3">This part is only configured on
+the LTSP server, not on the client. <strong>pamltsp</strong> takes
+care of creating the local home directory on the LTSP clients
+which&nbsp;is really a link to the <strong>sshfs</strong> copy of
+their ZFS-backed <strong>/home</strong> directory on the
+server.<br></span></div>
 <div><br></div>
+<div><span class="ms-rteFontSize-3">Edit
+<strong>/etc/pam.d/common-session</strong> on the LTSP server and
+comment out or delete:</span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3">session optional
+pam_mkhomedir.so</span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div><span class="ms-rteFontSize-3">If it is present and add the
+line:</span></div>
+<div><br class="ms-rteFontSize-3"></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3">session optional</span> <span class=
+"ms-rteFontSize-3">pam_exec.so
+/usr/local/bin/mkzfshome.sh</span></div>
+<br>
+<br>
+<span class="ms-rteFontSize-3">To the end of the file.
+<strong>mkzfshome.sh</strong> is a <a href=
+"https://raw.githubusercontent.com/danboid/dox/main/LTSP/mkzfshome.sh"
+moz-do-not-send="true">script like this</a>. Note that if you
+wanted to use this script with the gdm3 display manager you would
+replace <strong>lightdm</strong> with <strong>gdm</strong> in line
+2 to prevent the display manager crea<span>ting a home directory
+for itself.</span></span>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3">Running this script requires
+root permissions so we will configure sudo to give all members of
+the <strong>isdads-user</strong> group (GID 1001) permission to run
+this script as root and without entering a password by running
+<strong>visudo</strong> on the LTSP server and adding:</span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div style=
+"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
+<span class="ms-rteFontSize-3">%isdads-user ALL=(ALL) NOPASSWD:
+/usr/local/bin/mkzfshome.sh<br></span></div>
+</div>
+<div><br></div>
+<div><br>
+<br></div>
 <div>
 <h3><span class="ms-rteFontSize-4">Adding 2FA to external
 SSH</span></h3>
@@ -884,68 +942,12 @@ PubkeyAuthentication yes</span><br></div>
 <span class="ms-rteFontSize-3">After making these changes, restart
 the <strong>ssh</strong> service. Users accessing the server via
 ssh off-campus will now be prompted for a verification code before
-their password. See the user instructions for&nbsp;<a href=
-"/sites/sc02/TS018/CSSE%20wiki/Google%20Authenticator.aspx">configuring&nbsp;Google&nbsp;Authenticator
-here</a>.</span><br></div>
+their password.</span><br></div>
 <div><br></div>
 <div><span class="ms-rteFontSize-3"><br></span></div>
 <div><br></div>
-<div>
-<h3><span class="ms-rteFontSize-4">Creating&nbsp;a&nbsp;ZFS home
-directory/dataset for each user on&nbsp;initial
-login<br></span></h3>
-</div>
-<div><br></div>
-<div><span class="ms-rteFontSize-3">This part is only configured on
-the LTSP server, not on the client. <strong>pamltsp</strong> takes
-care of creating the local home directory on the LTSP clients
-which&nbsp;is really a link to the <strong>sshfs</strong> copy of
-their ZFS-backed <strong>/home</strong> directory on the
-server.<br></span></div>
-<div><br></div>
-<div><span class="ms-rteFontSize-3">Edit
-<strong>/etc/pam.d/common-session</strong> on the LTSP server and
-comment out or delete:</span></div>
-<div><br class="ms-rteFontSize-3"></div>
-<div style=
-"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
-<span class="ms-rteFontSize-3">session optional
-pam_mkhomedir.so</span></div>
-<div><br class="ms-rteFontSize-3"></div>
-<div><span class="ms-rteFontSize-3">If it is present and add the
-line:</span></div>
-<div><br class="ms-rteFontSize-3"></div>
-<div style=
-"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
-<span class="ms-rteFontSize-3">session optional</span> <span class=
-"ms-rteFontSize-3">pam_exec.so
-/usr/local/bin/mkzfshome.sh</span></div>
-<br>
-<br>
-<span class="ms-rteFontSize-3">To the end of the file.
-<strong>mkzfshome.sh</strong> is a <a href=
-"/sites/sc02/TS018/Shared%20Documents/mkzfshome.sh">script like
-this</a>. Note that if you wanted to use this script with the gdm3
-display manager you would replace <strong>lightdm</strong> with
-<strong>gdm</strong> in line 2 to prevent the display manager
-crea<span>ting a home directory for itself.</span></span>
-<div><span class="ms-rteFontSize-3"><br></span></div>
-<div><span class="ms-rteFontSize-3">Running this script requires
-root permissions so we will configure sudo to give all members of
-the <strong>isdads-user</strong> group (GID 1001) permission to run
-this script as root and without entering a password by running
-<strong>visudo</strong> on the LTSP server and adding:</span></div>
-<div><span class="ms-rteFontSize-3"><br></span></div>
-<div style=
-"background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
-<span class="ms-rteFontSize-3">%isdads-user ALL=(ALL) NOPASSWD:
-/usr/local/bin/mkzfshome.sh<br></span></div>
-<div><br></div>
-<div><span class="ms-rteFontSize-3"><br></span></div>
-<div>
 <h3><span class="ms-rteFontSize-3"><span class=
-"ms-rteFontSize-4">Booting LTSP</span><br></span></h3>
-</div>
+"ms-rteFontSize-4">Booting LTSP</span></span></h3>
 <div><span class="ms-rteFontSize-3"><br></span></div>
 <div><span class="ms-rteFontSize-3">LTSP expects (prefers) to be
 the only PXE based service on the network. The university
@@ -995,8 +997,9 @@ default LTSP ipxe menu (as generated when you run <strong>ltsp
 ipxe</strong> on the LTSP server), then ltsp would auto-generate an
 ipxe boot menu&nbsp;with all of the LTSP images available to boot
 from that server. In our case we create an</span> <a href=
-"/sites/sc02/TS018/Shared%20Documents/LTSP-Ubuntu-20.04.ipxe"><span class="ms-rteFontSize-3">
-ipxe boot script in</span> <span class=
+"https://raw.githubusercontent.com/danboid/dox/main/LTSP/LTSP-Ubuntu-20.04.ipxe"
+moz-do-not-send="true"><span class="ms-rteFontSize-3">ipxe boot
+script in</span> <span class=
 "ms-rteFontSize-3"><strong>/srv/tftp/ltsp</strong> like
 this</span></a> <span class="ms-rteFontSize-3">which can be
 chainloaded from g4d with a command
@@ -1150,13 +1153,11 @@ terminal</span><br></span></h3>
 </div>
 <div><span class="ms-rteFontSize-3"><br></span></div>
 <div><span style="font-size: 13pt;"><span class=
-"ms-rteFontSize-3">I wrote a <a href=
-"/sites/sc02/TS018/Shared%20Documents/asteria-motd.txt">motd
-file&nbsp;with instructions for using the server</a>&nbsp;and I
-wanted users to see it every time they open a terminal, unless they
-choose to disable it.</span> To modify the
-<strong>~/.bashrc</strong> file of all existing users to print the
-motd when opening a terminal I ran:<br></span></div>
+"ms-rteFontSize-3">I wrote a motd file&nbsp;with instructions for
+using the server&nbsp;and I wanted users to see it every time they
+open a terminal, unless they choose to disable it.</span> To modify
+the <strong>~/.bashrc</strong> file of all existing users to print
+the motd when opening a terminal I ran:<br></span></div>
 <div><span style="font-size: 13pt;"><br></span></div>
 <div style=
 "background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
@@ -1203,9 +1204,10 @@ night at 10 PM is:</span></div>
 only&nbsp;copies ZFS snapshots. You may be using sanoid to prune
 old snapshots on the source but syncoid does not remove deleted
 snapshots from the target pool when they get removed from the
-source hence we run <strong>zfs-prune-snapshots</strong> daily via
-a cron job on leto to remove any snapshots older than three
-months.<br></span></div>
+source hence we run <a moz-do-not-send="true" href=
+"https://github.com/bahamas10/zfs-prune-snapshots">zfs-prune-snapshots</a>
+daily via a cron job on leto to remove any snapshots older than
+three months.<br></span></div>
 <div><span style="font-size: 13pt;"><br></span></div>
 <div><span style="font-size: 13pt;">We must configure rear to use a
 &gt;= 512 MB UEFI partition (400 MB is the default in the version
@@ -1213,12 +1215,12 @@ of rear used in Ubuntu 20.04 and that is slightly too small) for
 the recovery disk and we also need to tell it not to backup the ZFS
 home directory pool (or more specifically its disks) nor any of the
 attached USB disks which can be done by creating a <a href=
-"/sites/sc02/TS018/Shared%20Documents/local.conf">/etc/rear/local.conf
-like this</a>. The rear <a href=
-"https://github.com/rear/rear">quickstart guide</a> covers the
-steps for creating a rear backup. rear currently has no support for
-ZFS so the home dir pool would need to be separately restored in a
-server recovery scenario.<br></span></div>
+"https://raw.githubusercontent.com/danboid/dox/main/LTSP/local.conf"
+moz-do-not-send="true">/etc/rear/local.conf like this</a>. The rear
+<a href="https://github.com/rear/rear">quickstart guide</a> covers
+the steps for creating a rear backup. rear currently has no support
+for ZFS so the home dir pool would need to be separately restored
+in a server recovery scenario.<br></span></div>
 <div><span style="font-size: 13pt;"><br></span></div>
 <div><span style="font-size: 13pt;"><br></span></div>
 <div><span style="font-size: 13pt;"><br></span></div>

@@ -29,6 +29,7 @@
 
 
 ## Misc
+[Notes on configuring a ZFS LTSP server](https://htmlpreview.github.io/?https://github.com/danboid/dox/blob/main/LTSP/LTSP+ZFS.html)
 
 [Sending email with postfix and gmail](https://htmlpreview.github.io/?https://github.com/danboid/dox/blob/main/postfix_gmail.html)
 
