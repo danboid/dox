@@ -7,7 +7,8 @@
 <body>
 <div>
 <h1><span class="ms-rteFontSize-3"><span class=
-"ms-rteFontSize-5">Notes on configuring a ZFS LTSP server</span></span></h1>
+"ms-rteFontSize-5">Notes on configuring a ZFS LTSP
+server</span></span></h1>
 </div>
 <div>
 <p>I recently configured a ZFS-based <span class=
@@ -381,7 +382,15 @@ astarray/backups/zeus &gt;/dev/null 2&gt;&amp;1</span></div>
 moz-do-not-send="true">this script</a> to transfer the home
 directories from the old LTSP server onto the new one using rsync
 and to create a ZFS dataset for each user before copying their
-files.<br></span></div>
+files.<br>
+<br>
+<br></span><br>
+<h2><span class="ms-rteFontSize-3"><span class="ms-rteFontSize-3">
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<span class="ms-rteFontSize-3"><span class=
+"ms-rteFontSize-4">Creating automated ZFS
+snapshots</span></span></span></span></h2>
+</div>
 <div><br></div>
 <div><span class="ms-rteFontSize-3"><strong>sanoid</strong> is the
 most highly recommended program for creating and managing (auto
@@ -390,17 +399,32 @@ configure. In our case it was simply a case of installing
 <strong>sanoid</strong> and creating a <a href=
 "https://raw.githubusercontent.com/danboid/dox/main/LTSP/sanoid.conf"
 moz-do-not-send="true">/etc/sanoid/sanoid.conf file like
-this</a>.<br></span></div>
+this</a>.<br>
+<br>
+<br></span></div>
 <div><span class="ms-rteFontSize-3"><br></span></div>
-<div><span class=
-"ms-rteFontSize-3"><strong>/etc/default/zfs</strong> has a ZFS
-tunable called <strong>ZPOOL_IMPORT_ALL_VISIBLE</strong> which is
-set to <strong>no</strong> by default under Ubuntu. After
-experiencing an automatic reboot for a kernel update where the home
-directory pool didn't get imported I decided turning this on could
-only reduce the chance of that happening again and shouldn't cause
-any issues with importing other pools as its only connected to
-one.<br></span></div>
+<div><br>
+<div class="ms-rte-layoutszone-inner" aria-label=
+"Rich text editor">
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<div>
+<h2><span class="ms-rteFontSize-4">Fix importing ZFS pools at
+boot<br></span></h2>
+</div>
+<div><br class="ms-rteFontSize-3"></div>
+<div><span class="ms-rteFontSize-3">When using ZFS under Ubuntu,
+your ZFS pools <strong>should</strong> get auto-imported (mounted)
+at boot if you have the <strong>zfs-import-cache.service</strong>
+enabled but this doesn't work reliably under Ubuntu 20.04. Ubuntu
+often imports the pool but then fails to mount&nbsp;its datasets.
+We can work around this by creating
+<strong>/etc/rc.local</strong>&nbsp;containing:<br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div style=
+"background:#eeeedd none repeat scroll 0% 0%;border-color:gray;border-style:solid;">
+<span class="ms-rteFontSize-3">zfs mount -a</span></div>
+</div>
+</div>
 <div><br></div>
 <div><br></div>
 <div><br></div>
