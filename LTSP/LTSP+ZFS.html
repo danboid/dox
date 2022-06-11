@@ -415,14 +415,15 @@ boot<br></span></h2>
 <div><span class="ms-rteFontSize-3">When using ZFS under Ubuntu,
 your ZFS pools <strong>should</strong> get auto-imported (mounted)
 at boot if you have the <strong>zfs-import-cache.service</strong>
-enabled but this doesn't work reliably under Ubuntu 20.04. Ubuntu
-often imports the pool but then fails to mount&nbsp;its datasets.
-We can work around this by creating
+enabled but this doesn't work reliably under Ubuntu 20.04. We can
+work around this by creating
 <strong>/etc/rc.local</strong>&nbsp;containing:<br></span></div>
 <div><span class="ms-rteFontSize-3"><br></span></div>
 <div style=
 "background:#eeeedd none repeat scroll 0% 0%;border-color:gray;border-style:solid;">
-<span class="ms-rteFontSize-3">zfs mount -a</span></div>
+<span class="ms-rteFontSize-3">zpool import astarray # Change this
+to import your pool(s)<br>
+zfs mount -a</span></div>
 </div>
 </div>
 <div><br></div>
@@ -440,28 +441,29 @@ similar to make upgrading to new releases easier.</span><br class=
 "ms-rteFontSize-3"></div>
 <div><br></div>
 <div><span class="ms-rteFontSize-3">Create a new user on the LTSP
-server called <strong>ltspadmin.&nbsp;</strong>Ensure that this
-isn't the name of group (and user) 1001 because we are using that
-GID for <strong>isdads-users</strong>. If this&nbsp;is the
+server that you will use for LTSP admin tasks. In these examples
+we'll use <strong>admin.&nbsp;</strong>Ensure that this isn't the
+name of group (and user) 1001 because we are using that GID for
+<strong>isdads-users</strong>. If this&nbsp;is the
 second&nbsp;user&nbsp;you&nbsp;are creating on the
 server&nbsp;(after the&nbsp;one created
 during&nbsp;installation)<strong>&nbsp;</strong>then&nbsp;it's&nbsp;likely&nbsp;that&nbsp;1001
 will&nbsp;be the default GID&nbsp;assigned to it unless you specify
 one manually when creating the user. Transfer the
-<strong>ltspadmin</strong> users home dir into its own ZFS dataset
-as described above and add <strong>ltspadmin</strong> to the
+<strong>admin</strong> users home dir into its own ZFS dataset as
+described above and add <strong>admin</strong> to the
 <strong>epoptes</strong>
 group.&nbsp;<strong><br></strong></span></div>
 <div><span class=
 "ms-rteFontSize-3"><strong><br></strong></span></div>
 <div style=
 "background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
-<span class="ms-rteFontSize-3"># gpasswd -a ltspadmin
+<span class="ms-rteFontSize-3"># gpasswd -a admin
 epoptes<br></span></div>
 <div><span class=
 "ms-rteFontSize-3"><strong><br></strong></span></div>
-<div><span class="ms-rteFontSize-3">The <strong>ltspadmin</strong>
-user will be&nbsp;used to
+<div><span class="ms-rteFontSize-3">The <strong>admin</strong> user
+will be&nbsp;used to
 update&nbsp;the&nbsp;VirtualBox&nbsp;<strong>.vmdk</strong>&nbsp;image&nbsp;which&nbsp;will&nbsp;be&nbsp;used&nbsp;as
 the&nbsp;source of our&nbsp;LTSP&nbsp;image as
 well&nbsp;as&nbsp;for using&nbsp;<strong>epoptes</strong>.&nbsp;The
@@ -558,7 +560,7 @@ to find your VM images:</span></div>
 <div><span class="ms-rteFontSize-3"><br></span></div>
 <div style=
 "background: #eeeedd none repeat scroll 0% 0%; border-color: gray; border-style: solid;">
-<span class="ms-rteFontSize-3"># ln -s /home/ltspadmin/VirtualBox\
+<span class="ms-rteFontSize-3"># ln -s /home/admin/VirtualBox\
 VMs/Ubuntu-20.04/Ubuntu-20.04-flat.vmdk
 /srv/ltsp/Ubuntu-20.04.img<br></span></div>
 <div><span class="ms-rteFontSize-3"><br></span></div>
