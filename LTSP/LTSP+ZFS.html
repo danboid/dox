@@ -288,17 +288,42 @@ need to wipe any disks first</span><br class="ms-rteFontSize-3">
 --typecode=1:BF00 /dev/sdf</span><br class="ms-rteFontSize-3">
 <span class="ms-rteFontSize-3"># zpool create -o ashift=13 -o
 autoexpand=on -o autoreplace=on -O atime=off -O compression=lz4
-astarray raidz2 /dev/sda1 /dev/sdb1 /dev/sdc1 /dev/sdd1 /dev/sde1
-/dev/sdf1</span><br class="ms-rteFontSize-3"></div>
+astarray raidz2</span> <span class="ms-rteFontSize-3">
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<span class=
+"ms-rteFontSize-3">scsi-SATA_Samsung_SSD_870_S5STNG0N907617P
+...</span></span></div>
 </div>
 <div><br></div>
-<div><span class="ms-rteFontSize-3">After running that
-command,</span> <strong class="ms-rteFontSize-3">zpool
-status</strong><span class="ms-rteFontSize-3">&nbsp;reports that
-these 6x 4 TB SSDs&nbsp;provide just&nbsp;over&nbsp;14 TB of usable
-space in the</span> <strong class=
-"ms-rteFontSize-3">astarray</strong> <span class=
-"ms-rteFontSize-3">RAIDZ2 pool.</span><br class="ms-rteFontSize-3">
+<div><br>
+<div class="ms-rte-layoutszone-inner" aria-label=
+"Rich text editor">
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<div><span class="ms-rteFontSize-3">Replacing
+<strong>scsi-SATA_Samsung_SSD_870_S5STNG0N907617P ...</strong> with
+the disk IDs of all the disks to be used in the pool (see the
+output of <strong>ls -l /dev/disk/by-id/*</strong>
+).<br></span></div>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div><span class="ms-rteFontSize-3"><span><span class=
+"ms-rteFontSize-3"><strong>zpool create</strong> lets you use
+device names like <strong>/dev/sda</strong> to create a pool but
+this should be avoided because pools created using such device
+names often fail to be successfully imported at boot</span></span>
+by the <strong>zfs-import-cache</strong> service even though they
+can be manually imported fine. You&nbsp;know&nbsp;this&nbsp;is the
+case&nbsp;if running <strong>systemctl status
+zfs-import-cache</strong> returns the error <strong>Failed to start
+Import ZFS pools by cache file</strong>.</span></div>
+</div>
+<span class="ms-rteFontSize-3"><br>
+After running that command,</span> <strong class=
+"ms-rteFontSize-3">zpool status</strong><span class=
+"ms-rteFontSize-3">&nbsp;reports that these 6x 4 TB
+SSDs&nbsp;provide just&nbsp;over&nbsp;14 TB of usable space in
+the</span> <strong class="ms-rteFontSize-3">astarray</strong>
+<span class="ms-rteFontSize-3">RAIDZ2 pool.</span><br class=
+"ms-rteFontSize-3">
 <br class="ms-rteFontSize-3">
 <span class="ms-rteFontSize-3">A couple more tweaks are recommended
 for using ZFS on SSDs, such as setting the ARC (the RAM based ZFS
@@ -373,7 +398,11 @@ zfsbackup@server1:lxdpool/containers/hermes astarray/backups/hermes
 zfsbackup@server2:rpool/data/subvol-100-disk-0
 astarray/backups/zeus &gt;/dev/null 2&gt;&amp;1</span><br class=
 "ms-rteFontSize-3">
-<span class="ms-rteFontSize-3">0 2 * * *
+<span class="ms-rteFontSize-3">0 2 * * *</span> <span class=
+"ms-rteFontSize-3"><span class="ms-rteFontSize-3">
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<span class=
+"ms-rteFontSize-3">PATH=/bin:/sbin:/usr/bin:/usr/sbin</span></span>
 /usr/local/bin/zfs-prune-snapshots 3M astarray/backups/hermes
 astarray/backups/zeus &gt;/dev/null 2&gt;&amp;1</span></div>
 <div><br></div>
@@ -400,35 +429,8 @@ configure. In our case it was simply a case of installing
 "https://raw.githubusercontent.com/danboid/dox/main/LTSP/sanoid.conf"
 moz-do-not-send="true">/etc/sanoid/sanoid.conf file like
 this</a>.<br>
-<br>
-<br></span></div>
-<div><span class="ms-rteFontSize-3"><br></span></div>
-<div><br>
-<div class="ms-rte-layoutszone-inner" aria-label=
-"Rich text editor">
-<meta http-equiv="content-type" content="text/html; charset=UTF-8">
-<div>
-<h2><span class="ms-rteFontSize-4">Fix importing ZFS pools at
-boot<br></span></h2>
-</div>
-<div><br class="ms-rteFontSize-3"></div>
-<div><span class="ms-rteFontSize-3">When using ZFS under Ubuntu,
-your ZFS pools <strong>should</strong> get auto-imported (mounted)
-at boot if you have the <strong>zfs-import-cache.service</strong>
-enabled but this doesn't work reliably under Ubuntu 20.04. We can
-work around this by creating
-<strong>/etc/rc.local</strong>&nbsp;containing:<br></span></div>
-<div><span class="ms-rteFontSize-3"><br></span></div>
-<div style=
-"background:#eeeedd none repeat scroll 0% 0%;border-color:gray;border-style:solid;">
-<span class="ms-rteFontSize-3">zpool import astarray # Change this
-to import your pool(s)<br>
-zfs mount -a</span></div>
-</div>
-</div>
-<div><br></div>
-<div><br></div>
-<div><br></div>
+<br></span><br>
+<br></div>
 <div>
 <h2><span class="ms-rteFontSize-4">LTSP image
 configuration</span></h2>
@@ -1000,7 +1002,14 @@ menu, kernel
 and&nbsp;initrd&nbsp;files&nbsp;via&nbsp;TFTP&nbsp;so&nbsp;instead&nbsp;we&nbsp;are
 going to&nbsp;configure a&nbsp;basic&nbsp;web server&nbsp;on our
 LTSP&nbsp;server&nbsp;to&nbsp;host&nbsp;our custom ipxe&nbsp;file,
-the&nbsp;kernel&nbsp;and initrd&nbsp;files.<br></span></div>
+the&nbsp;kernel&nbsp;and initrd&nbsp;files.</span> <span class=
+"ms-rteFontSize-3">We can use the following command to disable the
+TFTP server configured&nbsp;as default&nbsp;by&nbsp;LTSP:</span>
+<div><span class="ms-rteFontSize-3"><br></span></div>
+<div style=
+"background:#eeeedd none repeat scroll 0% 0%;border-color:gray;border-style:solid;">
+<span class="ms-rteFontSize-3"># ltsp dnsmasq -t 0<br></span></div>
+</div>
 <div><br></div>
 <div><span class="ms-rteFontSize-3">There&nbsp;is no point&nbsp;to
 installing&nbsp;Apache&nbsp;and its many modules&nbsp;simply
@@ -1230,7 +1239,25 @@ snapshots from the target pool when they get removed from the
 source hence we run <a moz-do-not-send="true" href=
 "https://github.com/bahamas10/zfs-prune-snapshots">zfs-prune-snapshots</a>
 daily via a cron job on leto to remove any snapshots older than
-three months.<br></span></div>
+three months</span> <span style="font-size:13pt;">and remove all
+'frequent' snapshots (those took every 15 minutes) from its
+pool:<br></span>
+<div><span style="font-size:13pt;"><br></span></div>
+<div style=
+"background:#eeeedd none repeat scroll 0% 0%;border-color:gray;border-style:solid;">
+<span style="font-size:13pt;">30 23 * * *
+PATH=/bin:/sbin:/usr/bin:/usr/sbin
+/usr/local/bin/zfs-prune-snapshots 3M 2&gt;&amp;1<br>
+0 4 * * *&nbsp; PATH=/bin:/sbin:/usr/bin:/usr/sbin
+/usr/local/bin/zfs-prune-snapshots -s '_frequently' 1s
+2&gt;&amp;1<br></span></div>
+<div><span style=
+"font-size:13pt;"><strong><br></strong></span></div>
+<div><span style=
+"font-size:13pt;"><strong>zfs-prune-snapshots</strong> doesn't work
+when run from cron without specifying the PATH&nbsp;of&nbsp;at
+least <strong>zfs</strong> (/usr/sbin).</span></div>
+</div>
 <div><span style="font-size: 13pt;"><br></span></div>
 <div><span style="font-size: 13pt;">We must configure rear to use a
 &gt;= 512 MB UEFI partition (400 MB is the default in the version
