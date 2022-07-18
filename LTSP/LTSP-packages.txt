@@ -11,6 +11,8 @@ gimp
 gimp-gutenprint
 gimp-plugin-registry
 git
+gnome-shell-extension-manager (22.04 and later)
+gnome-tweaks
 google-chrome (installed from .deb file)
 grace
 hexedit
