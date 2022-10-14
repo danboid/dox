@@ -448,11 +448,9 @@ configuration</span></h2>
 <br class="ms-rteFontSize-3">
 <span class="ms-rteFontSize-3">Here&nbsp;follows an outline of the
 manual steps to configure a Ubuntu 20.04 VM to be used as the basis
-for our LTSP image. It would be handy to automate&nbsp;most
-or&nbsp;all of these steps with an Ansible playbook or something
-similar to make upgrading to new releases easier.</span><br class=
-"ms-rteFontSize-3"></div>
-<div><br></div>
+for our LTSP image. You can you can automate most of the process that
+follows by using <a href="https://github.com/danboid/VUVU">VUVU.</a>
+</span><br class="ms-rteFontSize-3"></div><div><br></div>
 <div><span class="ms-rteFontSize-3">Create a new user on the LTSP
 server that you will use for LTSP admin tasks. In these examples
 we'll use <strong>admin.&nbsp;</strong>Ensure that this isn't the
@@ -507,8 +505,7 @@ name where X is the ID number of the partition as shown by
 disk</span></h2>
 <span class="ms-rteFontSize-3">For the base install I used
 <strong>ubuntu-20.04.4-desktop-amd64.iso</strong> as the VM
-installation media but you can automate the process using
-<a href="https://github.com/danboid/VUVU">VUVU.</a></span></div>
+installation media.</span></div>
 <div><br class="ms-rteFontSize-3"></div>
 <div><span class="ms-rteFontSize-3">When creating the VM, give it
 16 GB RAM (because thats what most of the machines in our labs
